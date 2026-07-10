@@ -53,7 +53,7 @@ hearth/
 **Files:**
 - Create: `.gitignore`, `server/go.mod`
 
-- [ ] **Step 1: 创建 .gitignore**
+- [x] **Step 1: 创建 .gitignore**
 
 ```gitignore
 # repo root .gitignore
@@ -68,12 +68,12 @@ server/internal/webdist/dist/*
 .DS_Store
 ```
 
-- [ ] **Step 2: 初始化 go module**
+- [x] **Step 2: 初始化 go module**
 
 Run: `cd server && go mod init github.com/m1iktea/hearth/server`
 Expected: 生成 `server/go.mod`，`module github.com/m1iktea/hearth/server`，`go 1.23`（低于 1.22 则手动改为本机版本，需 ≥1.22 以使用方法路由）
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add .gitignore server/go.mod
@@ -90,7 +90,7 @@ git commit -m "chore: init go module and gitignore"
 
 **规则：** 数据源按组启用——`PVE_URL` 非空则 `PVE_TOKEN_ID`/`PVE_TOKEN_SECRET` 必填；`OPENWRT_URL` 非空则用户名密码必填；`DOCKER_HOST` 有默认值恒启用。三源全空则报错。
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 ```go
 // server/internal/config/config_test.go
@@ -150,12 +150,12 @@ func TestLoadInvalidInterval(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run: `cd server && go test ./internal/config/`
 Expected: FAIL（`Load` 未定义，编译错误）
 
-- [ ] **Step 3: 最小实现**
+- [x] **Step 3: 最小实现**
 
 ```go
 // server/internal/config/config.go
@@ -231,12 +231,12 @@ func Load(getenv func(string) string) (*Config, error) {
 }
 ```
 
-- [ ] **Step 4: 运行测试确认通过**
+- [x] **Step 4: 运行测试确认通过**
 
 Run: `cd server && go test ./internal/config/`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add server/internal/config/
@@ -251,7 +251,7 @@ git commit -m "feat: add config loading with grouped validation"
 - Create: `server/internal/collector/collector.go`, `server/internal/store/snapshot.go`
 - Test: `server/internal/store/snapshot_test.go`
 
-- [ ] **Step 1: 定义 collector 类型（无逻辑，无需单测）**
+- [x] **Step 1: 定义 collector 类型（无逻辑，无需单测）**
 
 ```go
 // server/internal/collector/collector.go
@@ -283,7 +283,7 @@ type Collector interface {
 }
 ```
 
-- [ ] **Step 2: 写 SnapshotStore 失败测试**
+- [x] **Step 2: 写 SnapshotStore 失败测试**
 
 ```go
 // server/internal/store/snapshot_test.go
@@ -348,12 +348,12 @@ func TestAllSortedBySource(t *testing.T) {
 }
 ```
 
-- [ ] **Step 3: 运行测试确认失败**
+- [x] **Step 3: 运行测试确认失败**
 
 Run: `cd server && go test ./internal/store/`
 Expected: FAIL（`NewSnapshotStore` 未定义）
 
-- [ ] **Step 4: 最小实现**
+- [x] **Step 4: 最小实现**
 
 ```go
 // server/internal/store/snapshot.go
@@ -415,12 +415,12 @@ func (s *SnapshotStore) All() []collector.Snapshot {
 }
 ```
 
-- [ ] **Step 5: 运行测试确认通过**
+- [x] **Step 5: 运行测试确认通过**
 
 Run: `cd server && go test ./internal/store/`
 Expected: PASS
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add server/internal/collector/collector.go server/internal/store/snapshot.go server/internal/store/snapshot_test.go
@@ -441,7 +441,7 @@ git commit -m "feat: add collector types and in-memory snapshot store"
 - `GET /api2/json/nodes/{node}/qemu` → `{"data":[{"vmid":100,"name":"fnos","status":"running","cpu":0.05,"mem":4294967296,"maxmem":8589934592,"uptime":3600}]}`
 - 家用 PVE 常为自签名证书：client 使用 `InsecureSkipVerify`
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 ```go
 // server/internal/collector/proxmox/proxmox_test.go
@@ -506,12 +506,12 @@ func TestName(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run: `cd server && go test ./internal/collector/proxmox/`
 Expected: FAIL（`New` 未定义）
 
-- [ ] **Step 3: 最小实现**
+- [x] **Step 3: 最小实现**
 
 ```go
 // server/internal/collector/proxmox/proxmox.go
@@ -628,12 +628,12 @@ func (c *Client) getJSON(ctx context.Context, path string, out any) error {
 }
 ```
 
-- [ ] **Step 4: 运行测试确认通过**
+- [x] **Step 4: 运行测试确认通过**
 
 Run: `cd server && go test ./internal/collector/proxmox/`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add server/internal/collector/proxmox/
@@ -652,7 +652,7 @@ git commit -m "feat: add proxmox collector"
 - `GET /containers/json?all=1` → `[{"Id":"abc...","Names":["/hearth"],"Image":"hearth:latest","State":"running","Status":"Up 2 hours"}]`
 - host 支持 `unix:///path`（自定义 DialContext）与 `tcp://host:port` / `http(s)://`
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 ```go
 // server/internal/collector/docker/docker_test.go
@@ -708,12 +708,12 @@ func TestName(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run: `cd server && go test ./internal/collector/docker/`
 Expected: FAIL（`New` 未定义）
 
-- [ ] **Step 3: 最小实现**
+- [x] **Step 3: 最小实现**
 
 ```go
 // server/internal/collector/docker/docker.go
@@ -811,12 +811,12 @@ func (c *Client) Collect(ctx context.Context) (any, error) {
 }
 ```
 
-- [ ] **Step 4: 运行测试确认通过**
+- [x] **Step 4: 运行测试确认通过**
 
 Run: `cd server && go test ./internal/collector/docker/`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add server/internal/collector/docker/
@@ -838,7 +838,7 @@ git commit -m "feat: add docker collector"
 - `system info` → `{"result":[0,{"uptime":86400,"load":[65536,32768,16384],"memory":{"total":1000,"free":500,"available":600}}]}`（load 需除以 65536）
 - result[0] 非 0 表示 ubus 错误（6 = 权限拒绝）
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 ```go
 // server/internal/collector/openwrt/openwrt_test.go
@@ -930,12 +930,12 @@ func TestName(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run: `cd server && go test ./internal/collector/openwrt/`
 Expected: FAIL（`New` 未定义）
 
-- [ ] **Step 3: 最小实现**
+- [x] **Step 3: 最小实现**
 
 ```go
 // server/internal/collector/openwrt/openwrt.go
@@ -1085,12 +1085,12 @@ func (c *Client) call(ctx context.Context, session, object, method string, args 
 }
 ```
 
-- [ ] **Step 4: 运行测试确认通过**
+- [x] **Step 4: 运行测试确认通过**
 
 Run: `cd server && go test ./internal/collector/openwrt/`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add server/internal/collector/openwrt/
@@ -1105,7 +1105,7 @@ git commit -m "feat: add openwrt ubus collector"
 - Create: `server/internal/collector/scheduler.go`
 - Test: `server/internal/collector/scheduler_test.go`
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 ```go
 // server/internal/collector/scheduler_test.go
@@ -1176,12 +1176,12 @@ func TestRunStopsOnContextCancel(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run: `cd server && go test ./internal/collector/`
 Expected: FAIL（`NewScheduler` 未定义）
 
-- [ ] **Step 3: 最小实现**
+- [x] **Step 3: 最小实现**
 
 ```go
 // server/internal/collector/scheduler.go
@@ -1250,12 +1250,12 @@ func (s *Scheduler) CollectOnce(ctx context.Context) {
 }
 ```
 
-- [ ] **Step 4: 运行测试确认通过**
+- [x] **Step 4: 运行测试确认通过**
 
 Run: `cd server && go test ./internal/collector/...`
 Expected: PASS（含之前的 proxmox/docker/openwrt 测试）
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add server/internal/collector/scheduler.go server/internal/collector/scheduler_test.go
@@ -1272,12 +1272,12 @@ git commit -m "feat: add polling scheduler with per-source failure isolation"
 
 **依赖：** `go get modernc.org/sqlite`（纯 Go，无 CGO）
 
-- [ ] **Step 1: 安装依赖**
+- [x] **Step 1: 安装依赖**
 
 Run: `cd server && go get modernc.org/sqlite`
 Expected: go.mod 新增 `modernc.org/sqlite` 及间接依赖
 
-- [ ] **Step 2: 写失败测试**
+- [x] **Step 2: 写失败测试**
 
 ```go
 // server/internal/store/nav_test.go
@@ -1363,12 +1363,12 @@ func TestDeleteCategoryCascadesItems(t *testing.T) {
 }
 ```
 
-- [ ] **Step 3: 运行测试确认失败**
+- [x] **Step 3: 运行测试确认失败**
 
 Run: `cd server && go test ./internal/store/ -run 'Category|Item'`
 Expected: FAIL（`OpenNav` 未定义）
 
-- [ ] **Step 4: 最小实现**
+- [x] **Step 4: 最小实现**
 
 ```go
 // server/internal/store/nav.go
@@ -1527,12 +1527,12 @@ func (n *NavStore) DeleteItem(id int64) error {
 }
 ```
 
-- [ ] **Step 5: 运行测试确认通过**
+- [x] **Step 5: 运行测试确认通过**
 
 Run: `cd server && go test ./internal/store/`
 Expected: PASS（全部 snapshot + nav 测试）
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add server/go.mod server/go.sum server/internal/store/nav.go server/internal/store/nav_test.go
@@ -1547,7 +1547,7 @@ git commit -m "feat: add sqlite nav store with category/item CRUD"
 - Create: `server/internal/api/respond.go`, `server/internal/api/status.go`, `server/internal/api/router.go`
 - Test: `server/internal/api/status_test.go`
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 ```go
 // server/internal/api/status_test.go
@@ -1649,12 +1649,12 @@ func TestSPAFallback(t *testing.T) {
 
 注意：测试文件需要 `import "strings"`。
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run: `cd server && go test ./internal/api/`
 Expected: FAIL（`NewRouter` 未定义）
 
-- [ ] **Step 3: 实现 respond + status + router + spa**
+- [x] **Step 3: 实现 respond + status + router + spa**
 
 ```go
 // server/internal/api/respond.go
@@ -1808,12 +1808,12 @@ func registerNavRoutes(mux *http.ServeMux, nav *store.NavStore) {
 }
 ```
 
-- [ ] **Step 4: 运行测试确认通过**
+- [x] **Step 4: 运行测试确认通过**
 
 Run: `cd server && go test ./internal/api/`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add server/internal/api/
@@ -1828,7 +1828,7 @@ git commit -m "feat: add http router, status endpoints and spa hosting"
 - Modify: `server/internal/api/nav.go`（替换占位实现）
 - Test: `server/internal/api/nav_test.go`
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 ```go
 // server/internal/api/nav_test.go
@@ -1914,12 +1914,12 @@ func TestNavValidation(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run: `cd server && go test ./internal/api/ -run Nav`
 Expected: FAIL（404，路由未注册）
 
-- [ ] **Step 3: 实现 nav handlers（替换 nav.go 全文）**
+- [x] **Step 3: 实现 nav handlers（替换 nav.go 全文）**
 
 ```go
 // server/internal/api/nav.go
@@ -2111,12 +2111,12 @@ func pathID(w http.ResponseWriter, r *http.Request) (int64, bool) {
 }
 ```
 
-- [ ] **Step 4: 运行测试确认通过**
+- [x] **Step 4: 运行测试确认通过**
 
 Run: `cd server && go test ./...`
 Expected: 全部 PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add server/internal/api/nav.go server/internal/api/nav_test.go
@@ -2130,7 +2130,7 @@ git commit -m "feat: add nav crud endpoints with input validation"
 **Files:**
 - Create: `server/internal/webdist/webdist.go`, `server/internal/webdist/dist/index.html`（占位，构建时被真实前端覆盖）, `server/cmd/hearth/main.go`
 
-- [ ] **Step 1: 创建 webdist 包与占位页**
+- [x] **Step 1: 创建 webdist 包与占位页**
 
 ```go
 // server/internal/webdist/webdist.go
@@ -2156,7 +2156,7 @@ func Dist() (fs.FS, error) {
 <html><body>Hearth backend is running. Frontend not embedded in this build.</body></html>
 ```
 
-- [ ] **Step 2: 实现 main.go**
+- [x] **Step 2: 实现 main.go**
 
 ```go
 // server/cmd/hearth/main.go
@@ -2248,19 +2248,19 @@ func run(logger *slog.Logger) error {
 }
 ```
 
-- [ ] **Step 3: 编译与全量测试**
+- [x] **Step 3: 编译与全量测试**
 
 Run: `cd server && go build ./... && go vet ./... && go test ./...`
 Expected: 编译通过，全部测试 PASS
 
-- [ ] **Step 4: 冒烟验证（本机无真实 PVE 时源会显示 offline，属预期）**
+- [x] **Step 4: 冒烟验证（本机无真实 PVE 时源会显示 offline，属预期）**
 
 Run: `cd server && HEARTH_DATA_DIR=/tmp/hearth-dev DOCKER_HOST=unix:///var/run/docker.sock go run ./cmd/hearth & sleep 2 && curl -s localhost:8080/api/v1/healthz && curl -s localhost:8080/api/v1/status && kill %1`
 
 （若本会话 curl 被 context-mode 拦截，用 `ctx_execute` 执行等价验证。）
 Expected: healthz 返回 `{"success":true,"data":"ok"}`；status 返回 docker 源快照（本机 docker 在跑则 online）
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add server/internal/webdist/ server/cmd/
@@ -2274,7 +2274,7 @@ git commit -m "feat: wire main with scheduler, api server and embedded spa"
 **Files:**
 - Create: `web/`（Vite vue-ts 模板）+ 修改 `web/vite.config.ts`
 
-- [ ] **Step 1: 生成脚手架并安装依赖**
+- [x] **Step 1: 生成脚手架并安装依赖**
 
 Run:
 ```bash
@@ -2283,7 +2283,7 @@ cd web && npm install && npm install naive-ui vue-router@4 pinia && npm install 
 ```
 Expected: `web/` 生成 vue-ts 模板，依赖安装成功
 
-- [ ] **Step 2: 配置 dev 代理与构建（替换 vite.config.ts 全文）**
+- [x] **Step 2: 配置 dev 代理与构建（替换 vite.config.ts 全文）**
 
 ```ts
 // web/vite.config.ts
@@ -2300,7 +2300,7 @@ export default defineConfig({
 })
 ```
 
-- [ ] **Step 3: package.json 添加 test 脚本**
+- [x] **Step 3: package.json 添加 test 脚本**
 
 在 `web/package.json` 的 `scripts` 中加入：
 
@@ -2308,12 +2308,12 @@ export default defineConfig({
 "test": "vitest run"
 ```
 
-- [ ] **Step 4: 验证构建**
+- [x] **Step 4: 验证构建**
 
 Run: `cd web && npm run build`
 Expected: 生成 `web/dist/`，无 TS 错误
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add web/package.json web/package-lock.json web/vite.config.ts web/tsconfig*.json web/index.html web/src web/public web/.gitignore 2>/dev/null; git add -f web/.vscode 2>/dev/null; true
@@ -2330,7 +2330,7 @@ git commit -m "chore: scaffold vue3 + vite + ts frontend with dev proxy"
 - Create: `web/src/types.ts`, `web/src/api/client.ts`, `web/src/utils/format.ts`, `web/src/stores/status.ts`, `web/src/stores/nav.ts`
 - Test: `web/src/utils/format.test.ts`
 
-- [ ] **Step 1: 类型定义（与后端 JSON 逐字段对应）**
+- [x] **Step 1: 类型定义（与后端 JSON 逐字段对应）**
 
 ```ts
 // web/src/types.ts
@@ -2398,7 +2398,7 @@ export interface NavCategory {
 }
 ```
 
-- [ ] **Step 2: API client**
+- [x] **Step 2: API client**
 
 ```ts
 // web/src/api/client.ts
@@ -2427,7 +2427,7 @@ export const apiPut = <T>(path: string, body: unknown) => request<T>('PUT', path
 export const apiDelete = <T>(path: string) => request<T>('DELETE', path)
 ```
 
-- [ ] **Step 3: 写 utils 失败测试**
+- [x] **Step 3: 写 utils 失败测试**
 
 ```ts
 // web/src/utils/format.test.ts
@@ -2458,12 +2458,12 @@ describe('percent', () => {
 })
 ```
 
-- [ ] **Step 4: 运行测试确认失败**
+- [x] **Step 4: 运行测试确认失败**
 
 Run: `cd web && npm test`
 Expected: FAIL（format.ts 不存在）
 
-- [ ] **Step 5: 实现 utils**
+- [x] **Step 5: 实现 utils**
 
 ```ts
 // web/src/utils/format.ts
@@ -2495,12 +2495,12 @@ export function percent(used: number, total: number): number {
 }
 ```
 
-- [ ] **Step 6: 运行测试确认通过**
+- [x] **Step 6: 运行测试确认通过**
 
 Run: `cd web && npm test`
 Expected: PASS
 
-- [ ] **Step 7: Pinia stores**
+- [x] **Step 7: Pinia stores**
 
 ```ts
 // web/src/stores/status.ts
@@ -2594,7 +2594,7 @@ export const useNavStore = defineStore('nav', {
 })
 ```
 
-- [ ] **Step 8: 构建验证 + Commit**
+- [x] **Step 8: 构建验证 + Commit**
 
 Run: `cd web && npm run build && npm test`
 Expected: 构建 PASS、测试 PASS
@@ -2613,7 +2613,7 @@ git commit -m "feat: add frontend api client, stores and format utils"
 - Modify: `web/src/main.ts`, `web/src/App.vue`
 - Delete: `web/src/components/HelloWorld.vue`, `web/src/style.css` 引用按模板实际情况清理
 
-- [ ] **Step 1: router**
+- [x] **Step 1: router**
 
 ```ts
 // web/src/router/index.ts
@@ -2629,7 +2629,7 @@ export const router = createRouter({
 })
 ```
 
-- [ ] **Step 2: main.ts（替换全文）**
+- [x] **Step 2: main.ts（替换全文）**
 
 ```ts
 // web/src/main.ts
@@ -2641,7 +2641,7 @@ import { router } from './router'
 createApp(App).use(createPinia()).use(router).mount('#app')
 ```
 
-- [ ] **Step 3: App.vue（替换全文，布局 + 菜单）**
+- [x] **Step 3: App.vue（替换全文，布局 + 菜单）**
 
 ```vue
 <!-- web/src/App.vue -->
@@ -2678,7 +2678,7 @@ const menuOptions: MenuOption[] = [
 </template>
 ```
 
-- [ ] **Step 4: DashboardView（三源汇总卡片）**
+- [x] **Step 4: DashboardView（三源汇总卡片）**
 
 ```vue
 <!-- web/src/views/DashboardView.vue -->
@@ -2782,7 +2782,7 @@ const runningContainers = computed(
 </template>
 ```
 
-- [ ] **Step 5: NavView（导航 + 管理）**
+- [x] **Step 5: NavView（导航 + 管理）**
 
 ```vue
 <!-- web/src/views/NavView.vue -->
@@ -2897,7 +2897,7 @@ async function saveItem() {
 </template>
 ```
 
-- [ ] **Step 6: NodesView（各源详情表格）**
+- [x] **Step 6: NodesView（各源详情表格）**
 
 ```vue
 <!-- web/src/views/NodesView.vue -->
@@ -2983,7 +2983,7 @@ const wrtData = computed(() => store.bySource('openwrt')?.data as OpenWrtData | 
 </template>
 ```
 
-- [ ] **Step 7: 清理模板残留**
+- [x] **Step 7: 清理模板残留**
 
 删除 `web/src/components/HelloWorld.vue`；`web/src/style.css` 精简为：
 
@@ -2996,12 +2996,12 @@ body {
 
 若 main.ts 模板原本 import 了 `./style.css`，保留该 import（上面 Step 2 的 main.ts 没有引 style.css，则在 `index.html` 无需改动的情况下直接删除 style.css 亦可——两者选一，保证 `npm run build` 通过）。
 
-- [ ] **Step 8: 构建 + 测试验证**
+- [x] **Step 8: 构建 + 测试验证**
 
 Run: `cd web && npm run build && npm test`
 Expected: 构建 PASS（无 TS 错误）、vitest PASS
 
-- [ ] **Step 9: 前后端联调冒烟**
+- [x] **Step 9: 前后端联调冒烟**
 
 Run（两个终端或后台）:
 ```bash
@@ -3010,7 +3010,7 @@ cd web && npm run dev
 ```
 浏览器打开 `http://localhost:5173`：仪表盘显示 docker 卡片（本机 docker 在跑则 online；pve/openwrt 未配置不显示），导航页可增删分类与链接。验证后停止两个进程。
 
-- [ ] **Step 10: Commit**
+- [x] **Step 10: Commit**
 
 ```bash
 git add web/src/
@@ -3024,7 +3024,7 @@ git commit -m "feat: add dashboard, nav and nodes pages"
 **Files:**
 - Create: `deploy/Dockerfile`, `deploy/docker-compose.yml`, `deploy/.env.example`
 
-- [ ] **Step 1: Dockerfile（构建上下文为仓库根目录）**
+- [x] **Step 1: Dockerfile（构建上下文为仓库根目录）**
 
 ```dockerfile
 # deploy/Dockerfile
@@ -3055,7 +3055,7 @@ VOLUME ["/data"]
 ENTRYPOINT ["hearth"]
 ```
 
-- [ ] **Step 2: docker-compose.yml**
+- [x] **Step 2: docker-compose.yml**
 
 ```yaml
 # deploy/docker-compose.yml
@@ -3079,7 +3079,7 @@ services:
       - "${DOCKER_GID:-999}"
 ```
 
-- [ ] **Step 3: .env.example**
+- [x] **Step 3: .env.example**
 
 ```bash
 # deploy/.env.example — 复制为 .env 并填入实际值（.env 已被 gitignore）
@@ -3105,12 +3105,12 @@ HEARTH_LISTEN=:8080
 HEARTH_DATA_DIR=/data
 ```
 
-- [ ] **Step 4: 本机构建验证**
+- [x] **Step 4: 本机构建验证**
 
 Run: `docker build -f deploy/Dockerfile -t hearth:dev .`（在仓库根目录）
 Expected: 构建成功。随后 `docker run --rm -e PVE_URL= -e HEARTH_DATA_DIR=/tmp hearth:dev` 应因数据目录只读或 docker 源探测失败以外的原因正常启动（healthz 可用）；快速验证后 Ctrl+C。
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add deploy/Dockerfile deploy/docker-compose.yml deploy/.env.example
@@ -3124,7 +3124,7 @@ git commit -m "feat: add docker build and compose deployment"
 **Files:**
 - Create: `README.md`, `docs/deploy.md`
 
-- [ ] **Step 1: README.md**
+- [x] **Step 1: README.md**
 
 内容要点（用中文写，200 行内）：
 - 项目简介：自研家庭中枢，MVP = 导航页 + PVE/Docker/ImmortalWrt 状态监控 + 统一仪表盘
@@ -3137,7 +3137,7 @@ git commit -m "feat: add docker build and compose deployment"
 - 部署：指向 `docs/deploy.md`
 - Roadmap：设备控制 / 自动化 / 通知聚合 / 历史数据看板（对应 spec 第 9 节）
 
-- [ ] **Step 2: docs/deploy.md**
+- [x] **Step 2: docs/deploy.md**
 
 内容要点：
 - 前置：飞牛 SSH 可用、docker compose 可用
@@ -3147,7 +3147,7 @@ git commit -m "feat: add docker build and compose deployment"
 - 数据持久化说明：`deploy/data/` 即 SQLite 所在，备份即拷贝该目录
 - 常见问题：某源显示 offline 时看 `docker logs hearth` 中对应 source 的 warn 日志
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add README.md docs/deploy.md
@@ -3158,7 +3158,7 @@ git commit -m "docs: add readme and deployment guide"
 
 ### Task 17: 收尾验证
 
-- [ ] **Step 1: 全量回归**
+- [x] **Step 1: 全量回归**
 
 Run: `cd server && go vet ./... && go test ./...`
 Expected: 全部 PASS
@@ -3166,12 +3166,12 @@ Expected: 全部 PASS
 Run: `cd web && npm run build && npm test`
 Expected: PASS
 
-- [ ] **Step 2: 覆盖率检查（核心逻辑 80%+）**
+- [x] **Step 2: 覆盖率检查（核心逻辑 80%+）**
 
 Run: `cd server && go test ./... -coverprofile=/tmp/cover.out && go tool cover -func=/tmp/cover.out | tail -1`
 Expected: total 覆盖率 ≥ 80%（collector/store/api 为核心；main.go 组装代码不强求）。若不足，为缺口路径补测试。
 
-- [ ] **Step 3: push**
+- [x] **Step 3: push**
 
 ```bash
 git push origin main
