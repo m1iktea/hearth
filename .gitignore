@@ -1,0 +1,9 @@
+.env
+deploy/.env
+deploy/data/
+web/node_modules/
+web/dist/
+server/internal/webdist/dist/*
+!server/internal/webdist/dist/index.html
+*.db
+.DS_Store
