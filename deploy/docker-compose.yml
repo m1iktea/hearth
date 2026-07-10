@@ -1,0 +1,18 @@
+services:
+  hearth:
+    image: hearth:latest
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    container_name: hearth
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    env_file: .env
+    volumes:
+      - ./data:/data
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    # 非 root 用户读 docker.sock 需要加入 sock 所属组；
+    # 在飞牛上执行 `stat -c %g /var/run/docker.sock` 获取 GID 填入 .env 的 DOCKER_GID
+    group_add:
+      - "${DOCKER_GID:-999}"
