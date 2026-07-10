@@ -54,8 +54,11 @@ func Load(getenv func(string) string) (*Config, error) {
 		cfg.PollInterval = 10 * time.Second
 	} else {
 		d, err := time.ParseDuration(interval)
-		if err != nil || d <= 0 {
+		if err != nil {
 			return nil, fmt.Errorf("invalid HEARTH_POLL_INTERVAL %q: %w", interval, err)
+		}
+		if d <= 0 {
+			return nil, fmt.Errorf("HEARTH_POLL_INTERVAL must be positive, got %q", interval)
 		}
 		cfg.PollInterval = d
 	}

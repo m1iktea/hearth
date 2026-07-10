@@ -52,3 +52,15 @@ func TestLoadInvalidInterval(t *testing.T) {
 		t.Fatal("want error for invalid interval")
 	}
 }
+
+func TestLoadNonPositiveInterval(t *testing.T) {
+	for _, v := range []string{"-5s", "0s"} {
+		_, err := Load(getenvFrom(map[string]string{
+			"PVE_URL": "u", "PVE_TOKEN_ID": "i", "PVE_TOKEN_SECRET": "s",
+			"HEARTH_POLL_INTERVAL": v,
+		}))
+		if err == nil {
+			t.Errorf("want error for interval %q", v)
+		}
+	}
+}
