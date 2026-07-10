@@ -74,6 +74,32 @@ const wrtData = computed(() => store.bySource('openwrt')?.data as OpenWrtData | 
           </tr>
         </tbody>
       </n-table>
+      <n-table v-if="wrtData" size="small" style="margin-top: 12px">
+        <thead>
+          <tr>
+            <th>接口</th>
+            <th>设备</th>
+            <th>状态</th>
+            <th>IPv4</th>
+            <th>↓ 接收</th>
+            <th>↑ 发送</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="iface in (wrtData.interfaces ?? [])" :key="iface.name">
+            <td>{{ iface.name }}</td>
+            <td>{{ iface.device }}</td>
+            <td>
+              <n-tag :type="iface.up ? 'success' : 'error'" size="small">
+                {{ iface.up ? 'up' : 'down' }}
+              </n-tag>
+            </td>
+            <td>{{ iface.ipv4 || '-' }}</td>
+            <td>{{ formatBytes(iface.rx_bytes) }}</td>
+            <td>{{ formatBytes(iface.tx_bytes) }}</td>
+          </tr>
+        </tbody>
+      </n-table>
       <span v-else>数据源离线或等待数据…</span>
     </n-card>
   </n-space>

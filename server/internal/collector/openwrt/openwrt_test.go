@@ -42,6 +42,18 @@ func newFakeUbus(t *testing.T, password string) *httptest.Server {
 			reply(`{"hostname":"ImmortalWrt","model":"x86_64","release":{"distribution":"ImmortalWrt","version":"23.05"}}`)
 		case object == "system" && method == "info":
 			reply(`{"uptime":86400,"load":[65536,32768,16384],"memory":{"total":1000,"free":500,"available":600}}`)
+		case object == "network.interface" && method == "dump":
+			reply(`{"interface":[
+				{"interface":"loopback","up":true,"uptime":86400,"l3_device":"lo","proto":"static","device":"lo","ipv4-address":[{"address":"127.0.0.1","mask":8}]},
+				{"interface":"lan","up":true,"uptime":12345,"l3_device":"br-lan","proto":"static","device":"br-lan","ipv4-address":[{"address":"192.168.1.1","mask":24}]},
+				{"interface":"wan","up":true,"uptime":12000,"l3_device":"eth1","proto":"dhcp","device":"eth1","ipv4-address":[{"address":"10.0.0.2","mask":24}]}
+			]}`)
+		case object == "network.device" && method == "status":
+			reply(`{
+				"lo":     {"up":true,"carrier":true,"statistics":{"rx_bytes":100,"tx_bytes":100}},
+				"br-lan": {"up":true,"carrier":true,"statistics":{"rx_bytes":1000,"tx_bytes":2000}},
+				"eth1":   {"up":true,"carrier":true,"statistics":{"rx_bytes":3000,"tx_bytes":4000}}
+			}`)
 		default:
 			w.Write([]byte(`{"jsonrpc":"2.0","id":1,"result":[2]}`))
 		}
@@ -66,6 +78,25 @@ func TestCollect(t *testing.T) {
 	}
 	if data.Memory.Total != 1000 || data.Memory.Available != 600 {
 		t.Errorf("memory: %+v", data.Memory)
+	}
+
+	// interfaces: loopback skipped, expect lan + wan
+	if len(data.Interfaces) != 2 {
+		t.Fatalf("interfaces: want 2, got %d: %+v", len(data.Interfaces), data.Interfaces)
+	}
+	lan := data.Interfaces[0]
+	if lan.Name != "lan" || !lan.Up || lan.Device != "br-lan" || lan.IPv4 != "192.168.1.1" {
+		t.Errorf("lan interface: %+v", lan)
+	}
+	if lan.RxBytes != 1000 || lan.TxBytes != 2000 {
+		t.Errorf("lan traffic: rx=%d tx=%d", lan.RxBytes, lan.TxBytes)
+	}
+	wan := data.Interfaces[1]
+	if wan.Name != "wan" || wan.Device != "eth1" || wan.IPv4 != "10.0.0.2" {
+		t.Errorf("wan interface: %+v", wan)
+	}
+	if wan.RxBytes != 3000 || wan.TxBytes != 4000 {
+		t.Errorf("wan traffic: rx=%d tx=%d", wan.RxBytes, wan.TxBytes)
 	}
 }
 

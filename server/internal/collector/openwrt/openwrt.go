@@ -25,18 +25,28 @@ type Client struct {
 }
 
 type Data struct {
-	Hostname  string     `json:"hostname"`
-	Model     string     `json:"model"`
-	Release   string     `json:"release"`
-	UptimeSec int64      `json:"uptime_sec"`
-	Load      [3]float64 `json:"load"`
-	Memory    Memory     `json:"memory"`
+	Hostname   string      `json:"hostname"`
+	Model      string      `json:"model"`
+	Release    string      `json:"release"`
+	UptimeSec  int64       `json:"uptime_sec"`
+	Load       [3]float64  `json:"load"`
+	Memory     Memory      `json:"memory"`
+	Interfaces []Interface `json:"interfaces"`
 }
 
 type Memory struct {
 	Total     uint64 `json:"total"`
 	Free      uint64 `json:"free"`
 	Available uint64 `json:"available"`
+}
+
+type Interface struct {
+	Name    string `json:"name"`
+	Up      bool   `json:"up"`
+	Device  string `json:"device"`  // l3_device，如 br-lan
+	IPv4    string `json:"ipv4"`    // 第一个 ipv4 地址（无则空）
+	RxBytes uint64 `json:"rx_bytes"`
+	TxBytes uint64 `json:"tx_bytes"`
 }
 
 func New(baseURL, username, password string) *Client {
@@ -82,6 +92,32 @@ func (c *Client) Collect(ctx context.Context) (any, error) {
 		return nil, fmt.Errorf("system info: %w", err)
 	}
 
+	// network.interface dump
+	var ifDump struct {
+		Interface []struct {
+			Interface  string `json:"interface"`
+			Up         bool   `json:"up"`
+			L3Device   string `json:"l3_device"`
+			IPv4Addrs  []struct {
+				Address string `json:"address"`
+			} `json:"ipv4-address"`
+		} `json:"interface"`
+	}
+	if err := c.call(ctx, login.Session, "network.interface", "dump", map[string]any{}, &ifDump); err != nil {
+		return nil, fmt.Errorf("network.interface dump: %w", err)
+	}
+
+	// network.device status（不传 name，返回全部设备 map）
+	var devStatus map[string]struct {
+		Statistics struct {
+			RxBytes uint64 `json:"rx_bytes"`
+			TxBytes uint64 `json:"tx_bytes"`
+		} `json:"statistics"`
+	}
+	if err := c.call(ctx, login.Session, "network.device", "status", map[string]any{}, &devStatus); err != nil {
+		return nil, fmt.Errorf("network.device status: %w", err)
+	}
+
 	data := Data{
 		Hostname:  board.Hostname,
 		Model:     board.Model,
@@ -92,6 +128,30 @@ func (c *Client) Collect(ctx context.Context) (any, error) {
 	for i, l := range info.Load {
 		data.Load[i] = float64(l) / 65536.0 // ubus load 为定点数
 	}
+
+	for _, iface := range ifDump.Interface {
+		if iface.Interface == "loopback" {
+			continue
+		}
+		var ipv4 string
+		if len(iface.IPv4Addrs) > 0 {
+			ipv4 = iface.IPv4Addrs[0].Address
+		}
+		var rxBytes, txBytes uint64
+		if dev, ok := devStatus[iface.L3Device]; ok {
+			rxBytes = dev.Statistics.RxBytes
+			txBytes = dev.Statistics.TxBytes
+		}
+		data.Interfaces = append(data.Interfaces, Interface{
+			Name:    iface.Interface,
+			Up:      iface.Up,
+			Device:  iface.L3Device,
+			IPv4:    ipv4,
+			RxBytes: rxBytes,
+			TxBytes: txBytes,
+		})
+	}
+
 	return data, nil
 }
 

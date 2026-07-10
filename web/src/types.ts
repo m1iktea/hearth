@@ -43,6 +43,14 @@ export interface OpenWrtData {
   uptime_sec: number
   load: [number, number, number]
   memory: { total: number; free: number; available: number }
+  interfaces: {
+    name: string
+    up: boolean
+    device: string
+    ipv4: string
+    rx_bytes: number
+    tx_bytes: number
+  }[]
 }
 
 export interface NavItem {
