@@ -78,3 +78,43 @@ func TestNavValidation(t *testing.T) {
 		t.Errorf("non-numeric id: code=%d", code)
 	}
 }
+
+func TestNavCategoryUpdate(t *testing.T) {
+	h, _, _ := newTestRouter(t)
+
+	code, env := doJSON(t, h, "POST", "/api/v1/nav/categories", `{"name":"旧名","sort_order":1}`)
+	if code != 200 || !env.Success {
+		t.Fatalf("create: code=%d env=%+v", code, env)
+	}
+	var cat struct {
+		ID int64 `json:"id"`
+	}
+	if err := json.Unmarshal(env.Data, &cat); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+
+	// update ok
+	code, env = doJSON(t, h, "PUT", fmt.Sprintf("/api/v1/nav/categories/%d", cat.ID), `{"name":"新名","sort_order":2}`)
+	if code != 200 || !env.Success {
+		t.Fatalf("update: code=%d env=%+v", code, env)
+	}
+	var updated struct {
+		Name      string `json:"name"`
+		SortOrder int    `json:"sort_order"`
+	}
+	if err := json.Unmarshal(env.Data, &updated); err != nil {
+		t.Fatalf("unmarshal updated: %v", err)
+	}
+	if updated.Name != "新名" || updated.SortOrder != 2 {
+		t.Errorf("updated = %+v", updated)
+	}
+
+	// update missing -> 404
+	if code, _ = doJSON(t, h, "PUT", "/api/v1/nav/categories/99999", `{"name":"x"}`); code != 404 {
+		t.Errorf("update missing category: code=%d", code)
+	}
+	// update bad body -> 400
+	if code, _ = doJSON(t, h, "PUT", fmt.Sprintf("/api/v1/nav/categories/%d", cat.ID), `{"name":""}`); code != 400 {
+		t.Errorf("update empty name: code=%d", code)
+	}
+}
