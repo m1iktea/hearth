@@ -54,7 +54,7 @@ HEARTH_DATA_DIR=/tmp/hearth-dev go run ./cmd/hearth
 
 ```bash
 PVE_URL=https://192.168.x.x:8006 \
-PVE_TOKEN_ID=hearth@pam!hearth \
+PVE_TOKEN_ID=hearth@pve!monitor \
 PVE_TOKEN_SECRET=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx \
 OPENWRT_URL=http://192.168.x.x \
 OPENWRT_USERNAME=readonly \
@@ -83,6 +83,47 @@ cd web && npm test
 ## 部署
 
 见 [docs/deploy.md](docs/deploy.md)（飞牛 NAS Docker 一键部署）。
+
+## 在 PVE 中创建只读用户
+
+Hearth 通过 API Token 只读访问 PVE。SSH 到 PVE 宿主机，以 root 执行：
+
+```bash
+# 1. 创建专用用户（pve realm，不设密码，只走 token 认证）
+pveum user add hearth@pve --comment "hearth readonly monitor"
+
+# 2. 授予内置只读角色 PVEAuditor（路径 / 表示整个集群）
+pveum acl modify / --users hearth@pve --roles PVEAuditor
+
+# 3. 创建 API Token（--privsep 0 表示 token 继承用户权限）
+pveum user token add hearth@pve monitor --privsep 0
+```
+
+第 3 步输出中的 `value` 字段即 Token Secret，**只显示一次**，立即保存。
+
+验证（仍在 PVE 宿主机上）：
+
+```bash
+pveum user permissions hearth@pve   # 应看到 / 路径下一串 *.Audit 权限
+
+curl -sk -H 'Authorization: PVEAPIToken=hearth@pve!monitor=<Secret>' \
+  https://localhost:8006/api2/json/nodes   # 返回节点列表 JSON 即成功
+```
+
+将结果填入 `deploy/.env`：
+
+```env
+PVE_URL=https://<PVE的IP>:8006
+PVE_TOKEN_ID=hearth@pve!monitor
+PVE_TOKEN_SECRET=<Secret>
+```
+
+说明：
+
+- **PVEAuditor** 覆盖 Hearth 所需的全部权限（`Sys.Audit` / `VM.Audit`），且不含任何写权限
+- 用户名的 `@pve` 是 PVE 自建认证域，不会在系统层面创建 Linux 用户（区别于 `@pam`）
+- 如需 token 权限与用户权限完全隔离，第 3 步改用 `--privsep 1`，并额外执行
+  `pveum acl modify / --tokens 'hearth@pve!monitor' --roles PVEAuditor`
 
 ## Roadmap
 

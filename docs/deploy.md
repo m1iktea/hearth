@@ -9,14 +9,10 @@
 
 ## 准备工作
 
-### 1. 创建 Proxmox VE API Token（如需监控 PVE）
+### 1. 创建 PVE 只读用户与 API Token（如需监控 PVE）
 
-1. 登录 PVE Web 界面 → **Datacenter → Permissions → API Tokens**
-2. 点击 **Add**，User 填 `hearth@pam`，Token ID 填 `hearth`
-3. **Privilege Separation** 建议勾选（Token 权限独立于用户权限）
-4. 记录生成的 Token Secret（仅显示一次）
-5. 给 Token 赋只读角色：**Datacenter → Permissions → Add → API Token Permission**
-   - Path：`/`，Token：`hearth@pam!hearth`，Role：`PVEAuditor`，勾选 **Propagate**
+命令行操作见 [README「在 PVE 中创建只读用户」](../README.md#在-pve-中创建只读用户)，
+三条 `pveum` 命令即可完成，得到 `PVE_TOKEN_ID=hearth@pve!monitor` 和 Token Secret。
 
 ### 2. 准备 ImmortalWrt 账号（如需监控路由器）
 
@@ -45,7 +41,7 @@ cp deploy/.env.example deploy/.env
 ```env
 # ── Proxmox VE（不填则该源不启用）──────────────────────────────
 PVE_URL=https://192.168.x.x:8006
-PVE_TOKEN_ID=hearth@pam!hearth
+PVE_TOKEN_ID=hearth@pve!monitor
 PVE_TOKEN_SECRET=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
 
 # ── Docker（默认读 /var/run/docker.sock，通常不需改）──────────────
