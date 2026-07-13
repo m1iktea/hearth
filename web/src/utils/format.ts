@@ -24,3 +24,10 @@ export function percent(used: number, total: number): number {
   if (total <= 0) return 0
   return Math.round((used / total) * 100)
 }
+
+/** 占用率映射进度条状态：>90% 红、>70% 黄，其余绿 */
+export function usageStatus(pct: number): 'success' | 'warning' | 'error' {
+  if (pct > 90) return 'error'
+  if (pct > 70) return 'warning'
+  return 'success'
+}
