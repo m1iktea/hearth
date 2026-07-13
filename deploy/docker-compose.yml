@@ -1,6 +1,6 @@
 services:
   hearth:
-    image: hearth:latest
+    image: mi1ktea/hearth:latest
     build:
       context: ..
       dockerfile: deploy/Dockerfile
