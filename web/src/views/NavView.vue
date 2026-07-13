@@ -1,10 +1,13 @@
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import {
   NAlert, NButton, NCard, NForm, NFormItem, NGrid, NGi, NInput, NInputNumber,
   NModal, NPopconfirm, NSelect, NSpace, NSwitch,
 } from 'naive-ui'
+import SiteIcon from '../components/SiteIcon.vue'
 import { useNavStore } from '../stores/nav'
+import { suggestNameFromURL } from '../utils/navCategory'
+import type { CategorySelection } from '../utils/navCategory'
 import type { NavItem } from '../types'
 
 const store = useNavStore()
@@ -12,42 +15,58 @@ onMounted(() => store.load())
 
 const manageMode = ref(false)
 
-// --- 分类编辑 ---
+// --- 分类改名 ---
 const catModal = ref(false)
 const catForm = reactive({ id: 0, name: '', sort_order: 0 })
-function openCatModal(id = 0, name = '', sortOrder = 0) {
+function openCatModal(id: number, name: string, sortOrder: number) {
   Object.assign(catForm, { id, name, sort_order: sortOrder })
   catModal.value = true
 }
 async function saveCat() {
   if (!catForm.name.trim()) return
-  if (catForm.id) await store.updateCategory(catForm.id, catForm.name, catForm.sort_order)
-  else await store.createCategory(catForm.name, catForm.sort_order)
+  await store.updateCategory(catForm.id, catForm.name, catForm.sort_order)
   catModal.value = false
 }
 
-// --- 条目编辑 ---
+// --- 添加 / 编辑导航 ---
 const itemModal = ref(false)
-const itemForm = reactive<Omit<NavItem, 'id'> & { id?: number }>({
-  category_id: 0, name: '', url: '', icon: '', sort_order: 0,
+const itemForm = reactive({
+  id: undefined as number | undefined,
+  name: '',
+  url: '',
+  icon: '',
+  sort_order: 0,
+  category: null as CategorySelection,
 })
-function openItemModal(categoryId: number, item?: NavItem) {
-  Object.assign(itemForm, item ?? {
-    id: undefined, category_id: categoryId, name: '', url: '', icon: '', sort_order: 0,
-  })
+const categoryOptions = computed(() =>
+  store.categories.map((c) => ({ label: c.name, value: c.id })),
+)
+
+function openItemModal(item?: NavItem, categoryId?: number) {
+  Object.assign(itemForm, item
+    ? { id: item.id, name: item.name, url: item.url, icon: item.icon, sort_order: item.sort_order, category: item.category_id }
+    : { id: undefined, name: '', url: '', icon: '', sort_order: 0, category: categoryId ?? null })
   itemModal.value = true
 }
+function fillNameFromURL() {
+  if (!itemForm.name.trim() && itemForm.url.trim()) {
+    itemForm.name = suggestNameFromURL(itemForm.url)
+  }
+}
 async function saveItem() {
-  if (!itemForm.name.trim() || !itemForm.url.trim()) return
-  await store.saveItem({ ...itemForm })
+  if (!itemForm.url.trim()) return
+  fillNameFromURL()
+  if (!itemForm.name.trim()) return
+  const { category, ...item } = itemForm
+  await store.saveItemWithCategory({ ...item }, category)
   itemModal.value = false
 }
 </script>
 
 <template>
-  <n-space justify="space-between" style="margin-bottom: 16px">
+  <n-space justify="space-between" align="center" style="margin-bottom: 16px">
+    <n-button type="primary" @click="openItemModal()">＋ 添加导航</n-button>
     <span style="font-size: 16px">管理模式 <n-switch v-model:value="manageMode" /></span>
-    <n-button v-if="manageMode" type="primary" @click="openCatModal()">新增分类</n-button>
   </n-space>
 
   <n-alert v-if="store.error" type="error" style="margin-bottom: 16px">{{ store.error }}</n-alert>
@@ -61,18 +80,18 @@ async function saveItem() {
           <template #trigger><n-button size="tiny" type="error">删除</n-button></template>
           删除分类会同时删除其下所有链接，确认？
         </n-popconfirm>
-        <n-button size="tiny" type="primary" @click="openItemModal(cat.id)">加链接</n-button>
+        <n-button size="tiny" type="primary" @click="openItemModal(undefined, cat.id)">加链接</n-button>
       </template>
     </n-space>
     <n-grid :cols="4" :x-gap="12" :y-gap="12" responsive="screen" item-responsive>
       <n-gi v-for="item in cat.items" :key="item.id" span="4 m:1">
-        <n-card size="small" hoverable>
+        <n-card size="small" hoverable class="nav-card">
           <a :href="item.url" target="_blank" rel="noopener" style="text-decoration: none; color: inherit">
-            <strong>{{ item.icon ? item.icon + ' ' : '' }}{{ item.name }}</strong>
+            <strong><SiteIcon :url="item.url" :fallback="item.icon" /> {{ item.name }}</strong>
             <div style="font-size: 12px; opacity: 0.6">{{ item.url }}</div>
           </a>
           <n-space v-if="manageMode" style="margin-top: 8px">
-            <n-button size="tiny" @click="openItemModal(cat.id, item)">编辑</n-button>
+            <n-button size="tiny" @click="openItemModal(item)">编辑</n-button>
             <n-popconfirm @positive-click="store.deleteItem(item.id)">
               <template #trigger><n-button size="tiny" type="error">删除</n-button></template>
               确认删除该链接？
@@ -91,18 +110,27 @@ async function saveItem() {
     <n-button type="primary" block @click="saveCat">保存</n-button>
   </n-modal>
 
-  <n-modal v-model:show="itemModal" preset="card" title="链接" style="width: 400px">
+  <n-modal v-model:show="itemModal" preset="card" :title="itemForm.id ? '编辑导航' : '添加导航'" style="width: 400px">
     <n-form>
-      <n-form-item label="分类">
+      <n-form-item label="URL">
+        <n-input v-model:value="itemForm.url" placeholder="https://..." @blur="fillNameFromURL" />
+      </n-form-item>
+      <n-form-item label="名称">
+        <n-input v-model:value="itemForm.name" placeholder="留空则自动取域名" />
+      </n-form-item>
+      <n-form-item label="分类（可选，可直接输入新分类名）">
         <n-select
-          v-model:value="itemForm.category_id"
-          :options="store.categories.map((c) => ({ label: c.name, value: c.id }))"
+          v-model:value="itemForm.category"
+          filterable
+          tag
+          clearable
+          placeholder="默认：未分类"
+          :options="categoryOptions"
         />
       </n-form-item>
-      <n-form-item label="名称"><n-input v-model:value="itemForm.name" /></n-form-item>
-      <n-form-item label="URL"><n-input v-model:value="itemForm.url" placeholder="https://..." /></n-form-item>
-      <n-form-item label="图标（emoji）"><n-input v-model:value="itemForm.icon" placeholder="🖥️" /></n-form-item>
-      <n-form-item label="排序"><n-input-number v-model:value="itemForm.sort_order" /></n-form-item>
+      <n-form-item label="排序">
+        <n-input-number v-model:value="itemForm.sort_order" />
+      </n-form-item>
     </n-form>
     <n-button type="primary" block @click="saveItem">保存</n-button>
   </n-modal>

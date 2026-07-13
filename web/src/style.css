@@ -1,4 +1,36 @@
 body {
   margin: 0;
   font-family: -apple-system, 'Segoe UI', Roboto, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  /* 主题切换时背景/文字颜色平滑过渡 */
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+/* 品牌字标：渐变文字，纯 CSS 无运行时开销 */
+.brand {
+  font-size: 18px;
+  font-weight: 700;
+  background: linear-gradient(120deg, #63e2b7, #2080f0);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* 导航卡片悬浮微抬升：只动 transform/shadow（GPU 合成层），不触发重排 */
+.nav-card {
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.nav-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
+}
+
+/* 尊重系统「减弱动态效果」设置 */
+@media (prefers-reduced-motion: reduce) {
+  body,
+  .nav-card {
+    transition: none;
+  }
+  .nav-card:hover {
+    transform: none;
+  }
 }
