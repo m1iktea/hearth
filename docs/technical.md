@@ -24,7 +24,7 @@ ARP 扫描、资产、健康巡检、事件 ────────────
 | 组件 | 职责 |
 |---|---|
 | `collector/proxmox` | 通过 PVE API Token 读取节点和 QEMU VM 状态、资源使用率 |
-| `collector/docker` | 通过只读 Docker socket 读取容器状态 |
+| `collector/docker` | 通过只读 Docker socket 读取容器列表；对每个 running 容器并发调用 one-shot stats，差分计算 CPU%、内存用量 |
 | `collector/openwrt` | 通过 LuCI ubus HTTP RPC 读取系统、网络接口和流量状态 |
 | `discovery` | 主机网络模式下执行 ARP 扫描，按 MAC 地址去重纳管 |
 | `health` | 对设备执行 Ping、TCP、HTTP 检查，记录最新结果和状态变化事件 |
@@ -45,6 +45,8 @@ ARP 扫描、资产、健康巡检、事件 ────────────
 | POST/PUT/DELETE | `/devices/{id}/checks` | Ping/TCP/HTTP 检查管理 |
 | GET | `/health`、`/events` | 当前健康结果与最近状态事件 |
 | POST | `/discovery/arp` | 执行 ARP 扫描（仅启用时可用） |
+| GET | `/capabilities` | 返回部署能力开关（如 `arp_discovery`），前端据此显隐功能入口 |
+| GET | `/metrics` | 查询黑匣子时序指标；支持 `source`/`object`/`metric`/`since`/`limit` 过滤 |
 
 首页的详细数据口径和后续聚合接口约束见 [product.md](product.md)。
 
@@ -79,6 +81,13 @@ cp deploy/.env.example deploy/.env
 | `HEARTH_ARP_DISCOVERY_ENABLED` | `false` | 由 Compose 模式设置，不建议手工覆盖 |
 | `HEARTH_LISTEN` | `:8080` | 监听地址 |
 | `HEARTH_DATA_DIR` | `/data` | SQLite 数据目录 |
+| `HEARTH_EVENT_RETENTION_DAYS` | `90` | 事件（`events`/`system_events`）保留天数 |
+| `HEARTH_METRIC_RETENTION_DAYS` | `30` | 黑匣子指标采样保留天数 |
+| `HEARTH_METRIC_SAMPLE_INTERVAL` | `60s` | 指标落盘节流间隔（每个数据源） |
+| `PVE_SSH_HOST`、`PVE_SSH_USER`、`PVE_SSH_PASSWORD` | 空 | PVE SSH 温度采集；三者同时配置后通过 SSH 读取节点温度 |
+| `PVE_SSH_KEY_FILE` | 空 | PVE SSH 私钥路径（与密码二选一） |
+
+PVE SSH 温度采集需在 PVE 主机以 root 运行 `deploy/pve-setup-sensors.sh`，一键创建受限账号并安装 `sensors` 依赖（详见根目录 README）。
 
 读取 Docker socket 前，在 Docker 主机执行下列命令，并将结果填入 `DOCKER_GID`：
 
@@ -122,7 +131,36 @@ cp -r deploy/data/ ~/hearth-backup-$(date +%Y%m%d)/
 
 恢复时停止服务、还原 `deploy/data/`，再重新启动服务。
 
-## 5. 运行与排障
+## 5. 黑匣子（Blackbox）
+
+黑匣子在采集链路上旁路记录关键指标与最新快照，使 Hearth 自身随宿主机崩溃重启后，仍能通过 `GET /api/v1/metrics` 回看故障前的资源走势和最后已知状态。
+
+### 存储结构
+
+| 表 | 用途 |
+|---|---|
+| `metric_samples` | 时序指标采样（source/object/metric/value/created_at） |
+| `snapshots` | 每个数据源的最后一次成功快照（JSON） |
+| `system_events` | 系统级事件，如节点重启（uptime 回落检测） |
+
+SQLite 开启 WAL 模式（`journal_mode=WAL`），降低高频小事务的 fsync 开销。
+
+### 采样口径
+
+| 来源 | 指标 |
+|---|---|
+| PVE 节点 | `cpu_pct`、`mem_pct`、`uptime_sec`、`vms_running` |
+| Docker 容器（running） | `cpu_pct`（one-shot stats 差分）、`mem_pct`（used/limit） |
+| Docker 汇总 | `containers_running`、`containers_total` |
+| ImmortalWrt | `mem_used_pct`、`load1`、`uptime_sec` |
+
+Docker 容器 CPU% 采用两轮差分（`cpu_delta / system_delta × online_cpus × 100`）。首轮无基线时 `cpu_pct` 为 `null`；容器重启导致累计值回退时同样按无基线处理，下一轮恢复正常差分。内存口径与 `docker stats` 一致：`used = usage − inactive_file`（cgroup v2）或 `usage − cache`（cgroup v1）。
+
+### 保留策略
+
+保留期由环境变量控制（见 4.2 配置表），超期数据由后台定时任务清理。
+
+## 6. 运行与排障
 
 ### 数据源显示 offline
 
@@ -147,7 +185,7 @@ docker logs hearth
 - 容器以非 root 用户运行；Ping 和 ARP 扫描需要 `NET_RAW`。
 - 默认假设仅在受信任局域网访问。若通过公网访问，应在 Hearth 外使用 VPN 或反向代理等网络访问控制。
 
-## 6. 本地开发与测试
+## 7. 本地开发与测试
 
 ```bash
 # 后端
@@ -164,6 +202,6 @@ cd server && go test ./...
 cd web && npm test
 ```
 
-## 7. 技术演进边界
+## 8. 技术演进边界
 
 后续需要新增数据源时，实现 `Collector` 并注册即可；新增产品模块可在 API 和前端分别增加路由。历史数据、通知与自动化应建立在稳定的状态变化事件和数据保留策略之上，避免直接耦合到单个采集器。
