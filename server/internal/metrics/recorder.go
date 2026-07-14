@@ -159,6 +159,19 @@ func extract(source string, data any, at time.Time) []store.MetricSample {
 		}
 		out = add(out, "docker", "containers_running", float64(running))
 		out = add(out, "docker", "containers_total", float64(len(d.Containers)))
+		// 追加每个 running 容器的资源指标
+		for _, c := range d.Containers {
+			if c.State != "running" {
+				continue
+			}
+			if c.CpuPct != nil {
+				out = add(out, c.Name, "cpu_pct", round1(*c.CpuPct))
+			}
+			if c.MemLimit > 0 {
+				memPct := float64(c.MemUsed) / float64(c.MemLimit) * 100
+				out = add(out, c.Name, "mem_pct", round1(memPct))
+			}
+		}
 	case openwrt.Data:
 		object := d.Hostname
 		if object == "" {

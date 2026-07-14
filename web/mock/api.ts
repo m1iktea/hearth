@@ -50,10 +50,10 @@ function status() {
       data: {
         containers: [
           { id: 'a1', name: 'immich', image: 'ghcr.io/immich-app/immich-server', state: 'exited', status: 'Exited (1) 8 minutes ago' },
-          { id: 'a2', name: 'gitea', image: 'gitea/gitea:latest', state: 'running', status: 'Up 5 days' },
-          { id: 'a3', name: 'vaultwarden', image: 'vaultwarden/server', state: 'running', status: 'Up 5 days' },
-          { id: 'a4', name: 'jellyfin', image: 'jellyfin/jellyfin', state: 'running', status: 'Up 2 days' },
-          { id: 'a5', name: 'qbittorrent', image: 'linuxserver/qbittorrent', state: 'running', status: 'Up 12 hours' },
+          { id: 'a2', name: 'gitea', image: 'gitea/gitea:latest', state: 'running', status: 'Up 5 days', cpu_pct: null, mem_used: 512 * 1024 * 1024, mem_limit: 2 * GiB },
+          { id: 'a3', name: 'vaultwarden', image: 'vaultwarden/server', state: 'running', status: 'Up 5 days', cpu_pct: 2.3, mem_used: Math.round(180 * 1024 * 1024), mem_limit: 1 * GiB },
+          { id: 'a4', name: 'jellyfin', image: 'jellyfin/jellyfin', state: 'running', status: 'Up 2 days', cpu_pct: 8.7, mem_used: Math.round(800 * 1024 * 1024), mem_limit: 2 * GiB },
+          { id: 'a5', name: 'qbittorrent', image: 'linuxserver/qbittorrent', state: 'running', status: 'Up 12 hours', cpu_pct: 1.2, mem_used: Math.round(350 * 1024 * 1024), mem_limit: 1 * GiB },
           { id: 'a6', name: 'nginx-proxy', image: 'nginx:alpine', state: 'running', status: 'Up 5 days' },
         ],
       },
@@ -197,6 +197,7 @@ function deviceDetail(id: number) {
 }
 
 function resolveMock(path: string): unknown {
+  if (path === '/api/v1/capabilities') return { arp_discovery: true }
   if (path === '/api/v1/status') return status()
   if (path === '/api/v1/health') return health()
   if (path === '/api/v1/events') return events()

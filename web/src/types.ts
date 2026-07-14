@@ -33,6 +33,9 @@ export interface DockerData {
     image: string
     state: string
     status: string
+    cpu_pct?: number | null
+    mem_used?: number
+    mem_limit?: number
   }[]
 }
 

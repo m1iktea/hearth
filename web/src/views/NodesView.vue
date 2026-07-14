@@ -44,15 +44,15 @@ const wrtData = computed(() => store.bySource('openwrt')?.data as OpenWrtData | 
     <n-card title="Docker 容器">
       <n-table v-if="dockerData" size="small">
         <thead>
-          <tr><th>名称</th><th>镜像</th><th>状态</th><th>详情</th></tr>
+          <tr><th>名称</th><th>镜像</th><th>状态</th><th>CPU</th><th>内存</th><th>详情</th></tr>
         </thead>
         <tbody>
           <tr v-for="c in dockerData.containers" :key="c.id">
             <td>{{ c.name }}</td>
             <td>{{ c.image }}</td>
-            <td>
-              <n-tag :type="c.state === 'running' ? 'success' : 'warning'" size="small">{{ c.state }}</n-tag>
-            </td>
+            <td><n-tag :type="c.state === 'running' ? 'success' : 'warning'" size="small">{{ c.state }}</n-tag></td>
+            <td>{{ c.cpu_pct != null ? Math.round(c.cpu_pct) + '%' : '-' }}</td>
+            <td>{{ c.mem_limit ? formatBytes(c.mem_used ?? 0) + ' / ' + formatBytes(c.mem_limit) : '-' }}</td>
             <td>{{ c.status }}</td>
           </tr>
         </tbody>

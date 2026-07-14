@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/m1iktea/hearth/server/internal/collector"
+	dockercol "github.com/m1iktea/hearth/server/internal/collector/docker"
 	"github.com/m1iktea/hearth/server/internal/collector/proxmox"
 	"github.com/m1iktea/hearth/server/internal/store"
 )
@@ -121,4 +122,67 @@ func TestRecorderNoRebootWhenUptimeGrows(t *testing.T) {
 	if len(db.systemEvents) != 0 {
 		t.Fatalf("unexpected reboot events: %v", db.systemEvents)
 	}
+}
+
+func ptr64(v float64) *float64 { return &v }
+
+func hasSample(samples []store.MetricSample, object, metric string) bool {
+	for _, s := range samples {
+		if s.Object == object && s.Metric == metric {
+			return true
+		}
+	}
+	return false
+}
+
+func TestExtractDockerContainerMetrics(t *testing.T) {
+	now := time.Now()
+
+	// running 容器：CpuPct 非 nil + MemLimit>0 → 两个样本都应产生
+	t.Run("running container with cpu and mem", func(t *testing.T) {
+		data := dockercol.Data{
+			Containers: []dockercol.Container{
+				{Name: "web", State: "running", CpuPct: ptr64(12.5), MemUsed: 256, MemLimit: 1024},
+			},
+		}
+		samples := extract("docker", data, now)
+		if !hasSample(samples, "web", "cpu_pct") {
+			t.Error("expected cpu_pct sample for running container")
+		}
+		if !hasSample(samples, "web", "mem_pct") {
+			t.Error("expected mem_pct sample for running container")
+		}
+	})
+
+	// running 容器：CpuPct=nil → 不产生 cpu_pct
+	t.Run("running container without cpu baseline", func(t *testing.T) {
+		data := dockercol.Data{
+			Containers: []dockercol.Container{
+				{Name: "db", State: "running", CpuPct: nil, MemUsed: 100, MemLimit: 512},
+			},
+		}
+		samples := extract("docker", data, now)
+		if hasSample(samples, "db", "cpu_pct") {
+			t.Error("should not produce cpu_pct when CpuPct is nil")
+		}
+		if !hasSample(samples, "db", "mem_pct") {
+			t.Error("expected mem_pct sample even without cpu baseline")
+		}
+	})
+
+	// exited 容器 → 不产生任何容器级样本
+	t.Run("exited container produces no per-container samples", func(t *testing.T) {
+		data := dockercol.Data{
+			Containers: []dockercol.Container{
+				{Name: "idle", State: "exited", CpuPct: ptr64(0), MemUsed: 0, MemLimit: 512},
+			},
+		}
+		samples := extract("docker", data, now)
+		if hasSample(samples, "idle", "cpu_pct") {
+			t.Error("exited container should not produce cpu_pct")
+		}
+		if hasSample(samples, "idle", "mem_pct") {
+			t.Error("exited container should not produce mem_pct")
+		}
+	})
 }
