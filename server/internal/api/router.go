@@ -22,6 +22,7 @@ func NewRouter(snaps *store.SnapshotStore, nav *store.NavStore, inventory *store
 
 	registerNavRoutes(mux, nav) // Task 10 实现；本 Task 先提供空实现避免编译失败
 	registerInventoryRoutes(mux, inventory, arpScanner)
+	registerMetricsRoutes(mux, inventory)
 
 	mux.Handle("/", spaHandler(dist))
 

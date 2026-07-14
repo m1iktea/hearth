@@ -15,6 +15,12 @@ type Config struct {
 	PVETokenID     string
 	PVETokenSecret string
 
+	// PVE 宿主机温度采集（SSH + lm-sensors），可选。
+	PVESSHHost     string
+	PVESSHUser     string
+	PVESSHPassword string
+	PVESSHKeyFile  string
+
 	DockerHost string
 
 	OpenWrtURL      string
@@ -27,11 +33,17 @@ type Config struct {
 	ARPDiscoveryEnabled bool
 	DataDir             string
 	ListenAddr          string
+
+	// 黑匣子留存策略：事件与指标的保留期、指标落盘采样间隔。
+	EventRetention       time.Duration
+	MetricRetention      time.Duration
+	MetricSampleInterval time.Duration
 }
 
 // PVEEnabled / OpenWrtEnabled 由 URL 是否配置决定；Docker 恒启用（有默认 socket）。
-func (c *Config) PVEEnabled() bool     { return c.PVEURL != "" }
-func (c *Config) OpenWrtEnabled() bool { return c.OpenWrtURL != "" }
+func (c *Config) PVEEnabled() bool        { return c.PVEURL != "" }
+func (c *Config) OpenWrtEnabled() bool    { return c.OpenWrtURL != "" }
+func (c *Config) PVESensorsEnabled() bool { return c.PVESSHHost != "" }
 
 func Load(getenv func(string) string) (*Config, error) {
 	cfg := &Config{
@@ -39,6 +51,10 @@ func Load(getenv func(string) string) (*Config, error) {
 		PVETokenID:      getenv("PVE_TOKEN_ID"),
 		PVETokenSecret:  getenv("PVE_TOKEN_SECRET"),
 		DockerHost:      getenv("DOCKER_HOST"),
+		PVESSHHost:      getenv("PVE_SSH_HOST"),
+		PVESSHUser:      getenv("PVE_SSH_USER"),
+		PVESSHPassword:  getenv("PVE_SSH_PASSWORD"),
+		PVESSHKeyFile:   getenv("PVE_SSH_KEY_FILE"),
 		OpenWrtURL:      getenv("OPENWRT_URL"),
 		OpenWrtUsername: getenv("OPENWRT_USERNAME"),
 		OpenWrtPassword: getenv("OPENWRT_PASSWORD"),
@@ -96,11 +112,48 @@ func Load(getenv func(string) string) (*Config, error) {
 		cfg.HealthInterval = d
 	}
 
+	eventRetention, err := loadRetentionDays(getenv, "HEARTH_EVENT_RETENTION_DAYS", 90)
+	if err != nil {
+		return nil, err
+	}
+	cfg.EventRetention = eventRetention
+	metricRetention, err := loadRetentionDays(getenv, "HEARTH_METRIC_RETENTION_DAYS", 30)
+	if err != nil {
+		return nil, err
+	}
+	cfg.MetricRetention = metricRetention
+	sampleInterval := getenv("HEARTH_METRIC_SAMPLE_INTERVAL")
+	if sampleInterval == "" {
+		cfg.MetricSampleInterval = time.Minute
+	} else {
+		d, err := time.ParseDuration(sampleInterval)
+		if err != nil || d <= 0 {
+			return nil, fmt.Errorf("HEARTH_METRIC_SAMPLE_INTERVAL must be a positive duration, got %q", sampleInterval)
+		}
+		cfg.MetricSampleInterval = d
+	}
+
 	if cfg.PVEEnabled() && (cfg.PVETokenID == "" || cfg.PVETokenSecret == "") {
 		return nil, errors.New("PVE_URL is set but PVE_TOKEN_ID/PVE_TOKEN_SECRET missing")
 	}
 	if cfg.OpenWrtEnabled() && (cfg.OpenWrtUsername == "" || cfg.OpenWrtPassword == "") {
 		return nil, errors.New("OPENWRT_URL is set but OPENWRT_USERNAME/OPENWRT_PASSWORD missing")
 	}
+	if cfg.PVESensorsEnabled() && (cfg.PVESSHUser == "" || (cfg.PVESSHPassword == "" && cfg.PVESSHKeyFile == "")) {
+		return nil, errors.New("PVE_SSH_HOST is set but PVE_SSH_USER and PVE_SSH_PASSWORD/PVE_SSH_KEY_FILE missing")
+	}
 	return cfg, nil
+}
+
+// loadRetentionDays 解析以“天”为单位的保留期环境变量。
+func loadRetentionDays(getenv func(string) string, key string, defaultDays int) (time.Duration, error) {
+	raw := strings.TrimSpace(getenv(key))
+	if raw == "" {
+		return time.Duration(defaultDays) * 24 * time.Hour, nil
+	}
+	days, err := strconv.Atoi(raw)
+	if err != nil || days <= 0 {
+		return 0, fmt.Errorf("%s must be a positive integer (days), got %q", key, raw)
+	}
+	return time.Duration(days) * 24 * time.Hour, nil
 }

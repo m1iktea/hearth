@@ -37,6 +37,16 @@ func (s *SnapshotStore) SetError(source string, err error, at time.Time) {
 	}
 }
 
+// Restore 在启动时回填上次持久化的快照；仅当内存中尚无该源数据时生效，
+// 不会覆盖已经开始的实时采集结果。
+func (s *SnapshotStore) Restore(snap collector.Snapshot) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.snaps[snap.Source]; !ok {
+		s.snaps[snap.Source] = snap
+	}
+}
+
 func (s *SnapshotStore) Get(source string) (collector.Snapshot, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()

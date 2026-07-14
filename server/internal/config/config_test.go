@@ -87,3 +87,35 @@ func TestLoadNonPositiveInterval(t *testing.T) {
 		}
 	}
 }
+
+func TestLoadRetentionDefaults(t *testing.T) {
+	cfg, err := Load(func(string) string { return "" })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.EventRetention != 90*24*time.Hour {
+		t.Errorf("EventRetention = %v", cfg.EventRetention)
+	}
+	if cfg.MetricRetention != 30*24*time.Hour {
+		t.Errorf("MetricRetention = %v", cfg.MetricRetention)
+	}
+	if cfg.MetricSampleInterval != time.Minute {
+		t.Errorf("MetricSampleInterval = %v", cfg.MetricSampleInterval)
+	}
+}
+
+func TestLoadRetentionInvalid(t *testing.T) {
+	for _, env := range []string{"HEARTH_EVENT_RETENTION_DAYS", "HEARTH_METRIC_RETENTION_DAYS"} {
+		for _, v := range []string{"abc", "0", "-3"} {
+			_, err := Load(func(key string) string {
+				if key == env {
+					return v
+				}
+				return ""
+			})
+			if err == nil {
+				t.Errorf("want error for %s=%q", env, v)
+			}
+		}
+	}
+}

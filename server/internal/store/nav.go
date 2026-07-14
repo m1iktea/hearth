@@ -44,7 +44,7 @@ CREATE TABLE IF NOT EXISTS nav_items (
 );`
 
 func OpenNav(path string) (*NavStore, error) {
-	db, err := sql.Open("sqlite", path+"?_pragma=foreign_keys(1)&_pragma=busy_timeout(5000)")
+	db, err := sql.Open("sqlite", sqliteDSN(path))
 	if err != nil {
 		return nil, fmt.Errorf("open sqlite: %w", err)
 	}

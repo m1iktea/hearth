@@ -127,6 +127,50 @@ PVE_TOKEN_SECRET=<Secret>
 - 如需 token 权限与用户权限完全隔离，第 3 步改用 `--privsep 1`，并额外执行
   `pveum acl modify / --tokens 'hearth@pve!monitor' --roles PVEAuditor`
 
+## 在 PVE 中创建温度采集账号（可选）
+
+PVE API 不暴露宿主机温度。Hearth 支持通过 SSH 定时执行 `sensors -j`
+采集 CPU / NVMe 温度并写入指标历史（黑匣子），用于死机、过热问题的事后回溯。
+
+把 [deploy/pve-setup-sensors.sh](deploy/pve-setup-sensors.sh) 复制到 PVE 宿主机，以 root 执行：
+
+```bash
+bash pve-setup-sensors.sh   # 交互输入密码；或 bash pve-setup-sensors.sh '<密码>'
+```
+
+脚本做四件事：
+
+1. 安装 `lm-sensors`，验证温度可读（读不到时自动跑 `sensors-detect --auto` 加载内核模块）
+2. 创建专用 Linux 账号 `hearth-sensors` 并设置密码
+3. 通过 sshd `ForceCommand` 把该账号锁死——无论客户端请求执行什么，
+   服务端只会返回 `sensors -j` 的输出，拿不到交互 shell，也禁止端口转发
+4. 校验 sshd 配置并热加载（不影响已有 SSH 会话）
+
+验证（从部署 Hearth 的机器上执行）：
+
+```bash
+ssh hearth-sensors@<PVE的IP>   # 输入密码后应直接打印温度 JSON 并退出
+```
+
+将结果填入 `deploy/.env` 并重启 Hearth：
+
+```env
+PVE_SSH_HOST=<PVE的IP>
+PVE_SSH_USER=hearth-sensors
+PVE_SSH_PASSWORD=<密码>
+```
+
+启动日志出现 `pve temperature probe enabled` 即生效；一两分钟后可用
+`GET /api/v1/metrics?source=proxmox&metric=temp_c` 查询温度样本。
+
+说明：
+
+- 不配置 `PVE_SSH_*` 时该功能完全关闭，其他功能不受影响
+- 采样间隔跟随 `HEARTH_METRIC_SAMPLE_INTERVAL`（默认 60s），保留期跟随
+  `HEARTH_METRIC_RETENTION_DAYS`（默认 30 天）
+- 该账号与上文的 `hearth@pve`（API Token）互不相关：前者是 `@pam` 系统账号
+  只为跑 `sensors`，后者是 PVE 自建域账号只读 API
+
 ## Roadmap
 
 - OpenWrt / 其他数据源的可选设备自动发现

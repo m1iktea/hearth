@@ -89,10 +89,32 @@ CREATE TABLE IF NOT EXISTS events (
  title TEXT NOT NULL, message TEXT NOT NULL, created_at DATETIME NOT NULL, resolved_at DATETIME
 );
 CREATE INDEX IF NOT EXISTS idx_health_checks_device ON health_checks(device_id);
-CREATE INDEX IF NOT EXISTS idx_events_created ON events(created_at DESC);`
+CREATE INDEX IF NOT EXISTS idx_events_created ON events(created_at DESC);
+CREATE TABLE IF NOT EXISTS metric_samples (
+ id INTEGER PRIMARY KEY AUTOINCREMENT, source TEXT NOT NULL, object TEXT NOT NULL,
+ metric TEXT NOT NULL, value REAL NOT NULL, created_at DATETIME NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_metric_samples_lookup ON metric_samples(source, object, metric, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_metric_samples_created ON metric_samples(created_at);
+CREATE TABLE IF NOT EXISTS snapshots (
+ source TEXT PRIMARY KEY, status TEXT NOT NULL, collected_at DATETIME NOT NULL,
+ last_error TEXT NOT NULL DEFAULT '', data TEXT NOT NULL DEFAULT ''
+);
+CREATE TABLE IF NOT EXISTS system_events (
+ id INTEGER PRIMARY KEY AUTOINCREMENT, source TEXT NOT NULL, object TEXT NOT NULL,
+ type TEXT NOT NULL, severity TEXT NOT NULL, title TEXT NOT NULL, message TEXT NOT NULL,
+ created_at DATETIME NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_system_events_created ON system_events(created_at DESC);`
+
+// sqliteDSN 统一两个 store 的连接参数：WAL 显著降低高频小事务的 fsync 开销，
+// 也缓解 nav/inventory 两个连接池对同一文件的写锁竞争。
+func sqliteDSN(path string) string {
+	return path + "?_pragma=foreign_keys(1)&_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)&_pragma=synchronous(NORMAL)"
+}
 
 func OpenInventory(path string) (*InventoryStore, error) {
-	db, err := sql.Open("sqlite", path+"?_pragma=foreign_keys(1)&_pragma=busy_timeout(5000)")
+	db, err := sql.Open("sqlite", sqliteDSN(path))
 	if err != nil {
 		return nil, fmt.Errorf("open inventory sqlite: %w", err)
 	}
@@ -330,11 +352,17 @@ func (s *InventoryStore) RecordProbe(c CheckWithDevice, status, message string, 
 	}
 	return tx.Commit()
 }
+
+// ListEvents 合并设备事件与系统事件（节点重启等）。系统事件 id 取负数，
+// 避免与设备事件的自增 id 冲突（前端以 id 作为列表 key）。
 func (s *InventoryStore) ListEvents(limit int) ([]Event, error) {
 	if limit <= 0 || limit > 200 {
 		limit = 50
 	}
-	rows, e := s.db.Query(`SELECT e.id,e.device_id,d.name,e.check_id,e.type,e.severity,e.title,e.message,e.created_at,e.resolved_at FROM events e JOIN devices d ON d.id=e.device_id ORDER BY e.created_at DESC LIMIT ?`, limit)
+	rows, e := s.db.Query(`SELECT e.id,e.device_id,d.name,e.check_id,e.type,e.severity,e.title,e.message,e.created_at,e.resolved_at FROM events e JOIN devices d ON d.id=e.device_id
+UNION ALL
+SELECT -se.id,0,se.object,0,se.type,se.severity,se.title,se.message,se.created_at,NULL FROM system_events se
+ORDER BY created_at DESC LIMIT ?`, limit)
 	if e != nil {
 		return nil, e
 	}
