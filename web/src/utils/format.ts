@@ -31,3 +31,37 @@ export function usageStatus(pct: number): 'success' | 'warning' | 'error' {
   if (pct > 70) return 'warning'
   return 'success'
 }
+
+/** 相对时间：<1 分钟“刚刚”、<1 小时“N 分钟前”、<1 天“N 小时前”、否则“N 天前” */
+export function formatRelative(iso: string | undefined, now: number): string {
+  if (!iso) return '—'
+  const t = new Date(iso).getTime()
+  if (Number.isNaN(t)) return '—'
+  const diff = Math.max(0, now - t)
+  if (diff < 60_000) return '刚刚'
+  const min = Math.floor(diff / 60_000)
+  if (min < 60) return `${min} 分钟前`
+  const h = Math.floor(min / 60)
+  if (h < 24) return `${h} 小时前`
+  return `${Math.floor(h / 24)} 天前`
+}
+
+/** 持续时长文本，用于“已持续 N 分钟” */
+export function formatDurationText(fromIso: string, now: number): string {
+  const t = new Date(fromIso).getTime()
+  if (Number.isNaN(t)) return '未知时长'
+  const diff = Math.max(0, now - t)
+  if (diff < 60_000) return '不足 1 分钟'
+  const min = Math.floor(diff / 60_000)
+  if (min < 60) return `${min} 分钟`
+  const h = Math.floor(min / 60)
+  if (h < 24) return `${h} 小时`
+  return `${Math.floor(h / 24)} 天`
+}
+
+/** 浏览器本地时区的绝对时间，用于悬浮提示 */
+export function formatAbsolute(iso: string | undefined): string {
+  if (!iso) return ''
+  const d = new Date(iso)
+  return Number.isNaN(d.getTime()) ? '' : d.toLocaleString()
+}

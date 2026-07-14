@@ -1,145 +1,212 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, computed } from 'vue'
-import { NAlert, NCard, NGrid, NGi, NTag } from 'naive-ui'
-import MetricBar from '../components/MetricBar.vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
+import { NAlert, NButton, NGi, NGrid, NTag } from 'naive-ui'
 import { useStatusStore } from '../stores/status'
-import { formatBytes, formatUptime, percent } from '../utils/format'
-import type { DockerData, OpenWrtData, ProxmoxData } from '../types'
+import { useOverviewStore } from '../stores/overview'
+import {
+  buildIssues,
+  buildRisks,
+  resolveGlobalState,
+  summarize,
+} from '../utils/overview'
+import { formatAbsolute, formatRelative } from '../utils/format'
+import SummaryCards from '../components/dashboard/SummaryCards.vue'
+import IssueSection from '../components/dashboard/IssueSection.vue'
+import InfraSection from '../components/dashboard/InfraSection.vue'
+import RiskList from '../components/dashboard/RiskList.vue'
+import EventList from '../components/dashboard/EventList.vue'
 
-const store = useStatusStore()
-onMounted(() => store.startPolling())
-onUnmounted(() => store.stopPolling())
+const STATUS_POLL_MS = 10_000
+const OVERVIEW_POLL_MS = 30_000
 
-const pve = computed(() => store.bySource('proxmox'))
-const docker = computed(() => store.bySource('docker'))
-const openwrt = computed(() => store.bySource('openwrt'))
+const router = useRouter()
+const statusStore = useStatusStore()
+const overview = useOverviewStore()
 
-const pveData = computed(() => pve.value?.data as ProxmoxData | undefined)
-const dockerData = computed(() => docker.value?.data as DockerData | undefined)
-const wrtData = computed(() => openwrt.value?.data as OpenWrtData | undefined)
+const now = ref(Date.now())
+let nowTimer = 0
 
-const runningContainers = computed(
-  () => dockerData.value?.containers.filter((c) => c.state === 'running').length ?? 0,
+onMounted(() => {
+  statusStore.startPolling(STATUS_POLL_MS)
+  overview.startPolling(OVERVIEW_POLL_MS)
+  nowTimer = window.setInterval(() => {
+    now.value = Date.now()
+  }, 10_000)
+})
+
+onUnmounted(() => {
+  statusStore.stopPolling()
+  overview.stopPolling()
+  window.clearInterval(nowTimer)
+})
+
+const summary = computed(() =>
+  summarize(statusStore.snapshots, overview.health.data, overview.devices.data),
 )
-const stoppedContainers = computed(() =>
-  (dockerData.value?.containers ?? []).filter((c) => c.state !== 'running'),
+const issues = computed(() =>
+  buildIssues(
+    statusStore.snapshots,
+    overview.health.data,
+    overview.devices.data,
+    overview.events.data,
+  ),
 )
+const risks = computed(() => buildRisks(statusStore.snapshots))
+const globalState = computed(() => resolveGlobalState(summary.value, now.value, STATUS_POLL_MS))
+
+const globalTag = computed(() => {
+  switch (globalState.value) {
+    case 'pending':
+      return { label: '正在获取状态', type: 'default' as const }
+    case 'issues':
+      return { label: `${summary.value.issueCount} 项需处理`, type: 'error' as const }
+    case 'stale':
+      return { label: '数据可能已过期', type: 'warning' as const }
+    default:
+      return { label: '全部正常', type: 'success' as const }
+  }
+})
+
+const updatedText = computed(() =>
+  summary.value.updatedAt
+    ? `更新于 ${formatRelative(summary.value.updatedAt, now.value)}`
+    : '等待首次采集',
+)
+
+const lastEventAt = computed(() => overview.events.data[0]?.created_at)
+
+/** 局部接口失败提示：各模块独立展示错误并可重试 */
+const failures = computed(() => {
+  const list: { key: string; label: string; error: string; retry: () => void }[] = []
+  if (statusStore.error)
+    list.push({ key: 'status', label: '数据源状态', error: statusStore.error, retry: () => void statusStore.fetchNow() })
+  if (overview.health.error)
+    list.push({ key: 'health', label: '健康检查', error: overview.health.error, retry: () => void overview.loadHealth() })
+  if (overview.events.error)
+    list.push({ key: 'events', label: '最近事件', error: overview.events.error, retry: () => void overview.loadEvents() })
+  if (overview.devices.error)
+    list.push({ key: 'devices', label: '设备台账', error: overview.devices.error, retry: () => void overview.loadDevices() })
+  return list
+})
+
+const issueSectionEl = ref<HTMLElement | null>(null)
+function focusIssues() {
+  issueSectionEl.value?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+}
+
+const quickLinks = [
+  { label: '设备中心', path: '/devices' },
+  { label: '健康中心', path: '/health' },
+  { label: '节点详情', path: '/nodes' },
+  { label: '服务导航', path: '/nav' },
+]
 </script>
 
 <template>
-  <n-alert v-if="store.error" type="error" style="margin-bottom: 16px">
-    {{ store.error }}
-  </n-alert>
+  <div class="dashboard">
+    <header class="dash-head">
+      <h2 class="dash-title">家庭运行概览</h2>
+      <div class="dash-status">
+        <n-tag :type="globalTag.type" size="medium" round>{{ globalTag.label }}</n-tag>
+        <span class="dash-updated" :title="formatAbsolute(summary.updatedAt)">
+          {{ updatedText }}
+        </span>
+      </div>
+    </header>
 
-  <n-grid :cols="3" :x-gap="16" :y-gap="16" responsive="screen" item-responsive>
-    <!-- Proxmox VE -->
-    <n-gi span="3 m:1">
-      <n-card title="Proxmox VE" class="source-card">
-        <template #header-extra>
-          <n-tag :type="pve?.status === 'online' ? 'success' : 'error'" size="small" round>
-            {{ pve?.status ?? 'unknown' }}
-          </n-tag>
-        </template>
-        <template v-if="pveData">
-          <div v-for="node in pveData.nodes" :key="node.name">
-            <div class="sub-line">节点 {{ node.name }} · 运行 {{ formatUptime(node.uptime) }}</div>
-            <div class="big-stat">
-              {{ node.vms.filter((v) => v.status === 'running').length }}<span class="big-stat-dim">/{{ node.vms.length }}</span> VM 运行中
-            </div>
-            <MetricBar
-              label="CPU"
-              :value="`${Math.round(node.cpu * 100)}%`"
-              :percentage="Math.round(node.cpu * 100)"
-            />
-            <MetricBar
-              label="内存"
-              :value="`${formatBytes(node.mem)} / ${formatBytes(node.maxmem)}`"
-              :percentage="percent(node.mem, node.maxmem)"
-            />
-          </div>
-        </template>
-        <div v-else class="waiting">{{ pve?.last_error ?? '等待数据…' }}</div>
-      </n-card>
-    </n-gi>
+    <n-alert
+      v-for="f in failures"
+      :key="f.key"
+      type="error"
+      class="dash-block"
+      :title="`${f.label}加载失败`"
+    >
+      <div class="failure-body">
+        <span>{{ f.error }}</span>
+        <n-button size="small" @click="f.retry">重试</n-button>
+      </div>
+    </n-alert>
 
-    <!-- Docker -->
-    <n-gi span="3 m:1">
-      <n-card title="飞牛 Docker" class="source-card">
-        <template #header-extra>
-          <n-tag :type="docker?.status === 'online' ? 'success' : 'error'" size="small" round>
-            {{ docker?.status ?? 'unknown' }}
-          </n-tag>
-        </template>
-        <template v-if="dockerData">
-          <div class="sub-line">共 {{ dockerData.containers.length }} 个容器</div>
-          <div class="big-stat">
-            {{ runningContainers }}<span class="big-stat-dim">/{{ dockerData.containers.length }}</span> 运行中
-          </div>
-          <MetricBar
-            label="运行占比"
-            :value="`${percent(runningContainers, dockerData.containers.length)}%`"
-            :percentage="percent(runningContainers, dockerData.containers.length)"
-          />
-          <div class="sub-line" style="margin-top: 12px">
-            <template v-if="stoppedContainers.length">
-              未运行：{{ stoppedContainers.map((c) => c.name).join('、') }}
-            </template>
-            <template v-else>全部容器正常运行</template>
-          </div>
-        </template>
-        <div v-else class="waiting">{{ docker?.last_error ?? '等待数据…' }}</div>
-      </n-card>
-    </n-gi>
+    <div class="dash-block">
+      <SummaryCards
+        :summary="summary"
+        :health-ready="overview.health.loaded"
+        :devices-ready="overview.devices.loaded"
+        @focus-issues="focusIssues"
+      />
+    </div>
 
-    <!-- ImmortalWrt -->
-    <n-gi span="3 m:1">
-      <n-card title="ImmortalWrt" class="source-card">
-        <template #header-extra>
-          <n-tag :type="openwrt?.status === 'online' ? 'success' : 'error'" size="small" round>
-            {{ openwrt?.status ?? 'unknown' }}
-          </n-tag>
-        </template>
-        <template v-if="wrtData">
-          <div class="sub-line">{{ wrtData.hostname }} · {{ wrtData.release }}</div>
-          <div class="big-stat">运行 {{ formatUptime(wrtData.uptime_sec) }}</div>
-          <MetricBar
-            label="内存占用"
-            :value="`可用 ${formatBytes(wrtData.memory.available)} / ${formatBytes(wrtData.memory.total)}`"
-            :percentage="percent(wrtData.memory.total - wrtData.memory.available, wrtData.memory.total)"
-          />
-          <div class="sub-line" style="margin-top: 12px">
-            负载 {{ wrtData.load.map((l) => l.toFixed(2)).join(' / ') }}
-          </div>
-        </template>
-        <div v-else class="waiting">{{ openwrt?.last_error ?? '等待数据…' }}</div>
-      </n-card>
-    </n-gi>
-  </n-grid>
+    <div ref="issueSectionEl" class="dash-block">
+      <IssueSection :issues="issues" :now="now" :last-event-at="lastEventAt" />
+    </div>
+
+    <div class="dash-block">
+      <InfraSection :snapshots="statusStore.snapshots" :now="now" />
+    </div>
+
+    <n-grid cols="1 m:2" :x-gap="12" :y-gap="12" responsive="screen" item-responsive class="dash-block">
+      <n-gi>
+        <RiskList :risks="risks" />
+      </n-gi>
+      <n-gi>
+        <EventList :events="overview.events.data" :now="now" />
+      </n-gi>
+    </n-grid>
+
+    <div class="dash-quick">
+      <n-button
+        v-for="link in quickLinks"
+        :key="link.path"
+        size="small"
+        secondary
+        @click="router.push(link.path)"
+      >
+        {{ link.label }}
+      </n-button>
+    </div>
+  </div>
 </template>
 
 <style scoped>
-/* 卡片随所在行等高拉伸，消除三张卡高低不齐 */
-.source-card {
-  height: 100%;
+.dashboard {
+  max-width: 1440px;
+  margin: 0 auto;
 }
-.sub-line {
-  font-size: 13px;
-  opacity: 0.65;
+.dash-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
 }
-.big-stat {
-  font-size: 26px;
-  font-weight: 600;
-  line-height: 1.4;
-  margin-top: 2px;
-  font-variant-numeric: tabular-nums;
-}
-.big-stat-dim {
-  opacity: 0.45;
+.dash-title {
+  margin: 0;
   font-size: 20px;
 }
-.waiting {
+.dash-status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.dash-updated {
+  font-size: 12px;
   opacity: 0.6;
-  padding: 16px 0;
-  text-align: center;
+}
+.dash-block {
+  margin-bottom: 16px;
+}
+.dash-quick {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.failure-body {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 </style>
