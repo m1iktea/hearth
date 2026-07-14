@@ -17,6 +17,8 @@ import (
 	"github.com/m1iktea/hearth/server/internal/collector/openwrt"
 	"github.com/m1iktea/hearth/server/internal/collector/proxmox"
 	"github.com/m1iktea/hearth/server/internal/config"
+	"github.com/m1iktea/hearth/server/internal/discovery"
+	"github.com/m1iktea/hearth/server/internal/health"
 	"github.com/m1iktea/hearth/server/internal/store"
 	"github.com/m1iktea/hearth/server/internal/webdist"
 )
@@ -54,6 +56,11 @@ func run(logger *slog.Logger) error {
 		return err
 	}
 	defer nav.Close()
+	inventory, err := store.OpenInventory(filepath.Join(cfg.DataDir, "hearth.db"))
+	if err != nil {
+		return err
+	}
+	defer inventory.Close()
 
 	dist, err := webdist.Dist()
 	if err != nil {
@@ -65,10 +72,11 @@ func run(logger *slog.Logger) error {
 
 	sched := collector.NewScheduler(collectors, snaps, cfg.PollInterval, logger)
 	go sched.Run(ctx)
+	go health.NewRunner(inventory, cfg.HealthInterval, logger).Run(ctx)
 
 	srv := &http.Server{
 		Addr:              cfg.ListenAddr,
-		Handler:           api.NewRouter(snaps, nav, dist, logger),
+		Handler:           api.NewRouter(snaps, nav, inventory, arpScanner(cfg), dist, logger),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 	go func() {
@@ -83,4 +91,11 @@ func run(logger *slog.Logger) error {
 		return err
 	}
 	return nil
+}
+
+func arpScanner(cfg *config.Config) *discovery.ARPScanner {
+	if !cfg.ARPDiscoveryEnabled {
+		return nil
+	}
+	return discovery.NewARPScanner(cfg.ScanNetworks)
 }

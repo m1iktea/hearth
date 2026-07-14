@@ -3,6 +3,9 @@ package config
 import (
 	"errors"
 	"fmt"
+	"net/netip"
+	"strconv"
+	"strings"
 	"time"
 )
 
@@ -18,9 +21,12 @@ type Config struct {
 	OpenWrtUsername string
 	OpenWrtPassword string
 
-	PollInterval time.Duration
-	DataDir      string
-	ListenAddr   string
+	PollInterval        time.Duration
+	HealthInterval      time.Duration
+	ScanNetworks        []string
+	ARPDiscoveryEnabled bool
+	DataDir             string
+	ListenAddr          string
 }
 
 // PVEEnabled / OpenWrtEnabled 由 URL 是否配置决定；Docker 恒启用（有默认 socket）。
@@ -48,6 +54,22 @@ func Load(getenv func(string) string) (*Config, error) {
 	if cfg.ListenAddr == "" {
 		cfg.ListenAddr = ":8080"
 	}
+	if raw := strings.TrimSpace(getenv("HEARTH_SCAN_NETWORKS")); raw != "" {
+		for _, value := range strings.Split(raw, ",") {
+			cidr := strings.TrimSpace(value)
+			if _, err := netip.ParsePrefix(cidr); err != nil {
+				return nil, fmt.Errorf("invalid HEARTH_SCAN_NETWORKS CIDR %q: %w", cidr, err)
+			}
+			cfg.ScanNetworks = append(cfg.ScanNetworks, cidr)
+		}
+	}
+	if raw := strings.TrimSpace(getenv("HEARTH_ARP_DISCOVERY_ENABLED")); raw != "" {
+		enabled, err := strconv.ParseBool(raw)
+		if err != nil {
+			return nil, fmt.Errorf("invalid HEARTH_ARP_DISCOVERY_ENABLED %q: %w", raw, err)
+		}
+		cfg.ARPDiscoveryEnabled = enabled
+	}
 
 	interval := getenv("HEARTH_POLL_INTERVAL")
 	if interval == "" {
@@ -61,6 +83,17 @@ func Load(getenv func(string) string) (*Config, error) {
 			return nil, fmt.Errorf("HEARTH_POLL_INTERVAL must be positive, got %q", interval)
 		}
 		cfg.PollInterval = d
+	}
+
+	healthInterval := getenv("HEARTH_HEALTH_INTERVAL")
+	if healthInterval == "" {
+		cfg.HealthInterval = 30 * time.Second
+	} else {
+		d, err := time.ParseDuration(healthInterval)
+		if err != nil || d <= 0 {
+			return nil, fmt.Errorf("HEARTH_HEALTH_INTERVAL must be a positive duration, got %q", healthInterval)
+		}
+		cfg.HealthInterval = d
 	}
 
 	if cfg.PVEEnabled() && (cfg.PVETokenID == "" || cfg.PVETokenSecret == "") {

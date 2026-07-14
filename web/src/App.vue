@@ -18,6 +18,8 @@ const menuOptions: MenuOption[] = [
   { label: () => h(RouterLink, { to: '/' }, { default: () => '仪表盘' }), key: 'dashboard' },
   { label: () => h(RouterLink, { to: '/nav' }, { default: () => '导航' }), key: 'nav' },
   { label: () => h(RouterLink, { to: '/nodes' }, { default: () => '节点详情' }), key: 'nodes' },
+  { label: () => h(RouterLink, { to: '/devices' }, { default: () => '设备中心' }), key: 'devices' },
+  { label: () => h(RouterLink, { to: '/health' }, { default: () => '健康中心' }), key: 'health' },
 ]
 </script>
 

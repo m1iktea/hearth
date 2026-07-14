@@ -22,8 +22,31 @@ func TestLoadDefaults(t *testing.T) {
 	if cfg.PollInterval != 10*time.Second {
 		t.Errorf("PollInterval = %v", cfg.PollInterval)
 	}
+	if cfg.HealthInterval != 30*time.Second || len(cfg.ScanNetworks) != 0 || cfg.ARPDiscoveryEnabled {
+		t.Errorf("HealthInterval=%v ScanNetworks=%v ARPDiscoveryEnabled=%v", cfg.HealthInterval, cfg.ScanNetworks, cfg.ARPDiscoveryEnabled)
+	}
 	if cfg.DataDir != "/data" || cfg.ListenAddr != ":8080" {
 		t.Errorf("DataDir=%q ListenAddr=%q", cfg.DataDir, cfg.ListenAddr)
+	}
+}
+
+func TestLoadARPDiscoveryEnabled(t *testing.T) {
+	cfg, err := Load(getenvFrom(map[string]string{"HEARTH_ARP_DISCOVERY_ENABLED": "true"}))
+	if err != nil || !cfg.ARPDiscoveryEnabled {
+		t.Fatalf("cfg=%+v err=%v", cfg, err)
+	}
+	if _, err := Load(getenvFrom(map[string]string{"HEARTH_ARP_DISCOVERY_ENABLED": "invalid"})); err == nil {
+		t.Error("want invalid boolean error")
+	}
+}
+
+func TestLoadScanNetworks(t *testing.T) {
+	cfg, err := Load(getenvFrom(map[string]string{"HEARTH_SCAN_NETWORKS": "192.168.1.0/24, 10.0.0.0/24"}))
+	if err != nil || len(cfg.ScanNetworks) != 2 {
+		t.Fatalf("cfg=%+v err=%v", cfg, err)
+	}
+	if _, err := Load(getenvFrom(map[string]string{"HEARTH_SCAN_NETWORKS": "not-a-cidr"})); err == nil {
+		t.Error("want invalid CIDR error")
 	}
 }
 

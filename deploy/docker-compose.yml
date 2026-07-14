@@ -6,13 +6,20 @@ services:
       dockerfile: deploy/Dockerfile
     container_name: hearth
     restart: unless-stopped
+    # 默认配置用于本机 Docker 测试，可从浏览器访问 http://localhost:8080。
     ports:
       - "8080:8080"
     env_file: .env
+    environment:
+      # 标准 Docker 网络不能发送到宿主真实二层网络，明确禁用 ARP 发现。
+      HEARTH_ARP_DISCOVERY_ENABLED: "false"
     volumes:
       - ./data:/data
       - /var/run/docker.sock:/var/run/docker.sock:ro
-    # 非 root 用户读 docker.sock 需要加入 sock 所属组；
-    # 在飞牛上执行 `stat -c %g /var/run/docker.sock` 获取 GID 填入 .env 的 DOCKER_GID
+    # 非 root 用户读 docker.sock 需要加入 socket 所属组；
+    # 填入 Docker 主机上 /var/run/docker.sock 的 GID。
     group_add:
       - "${DOCKER_GID:-999}"
+    # 供 Ping 健康检查使用。
+    cap_add:
+      - NET_RAW

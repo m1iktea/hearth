@@ -17,7 +17,11 @@ RUN CGO_ENABLED=0 go build -ldflags="-s -w" -o /hearth ./cmd/hearth
 
 # --- 运行镜像（非 root） ---
 FROM alpine:3.20
-RUN adduser -D -u 1000 hearth && mkdir -p /data && chown hearth:hearth /data
+RUN apk add --no-cache iputils arp-scan libcap-utils \
+    && setcap cap_net_raw+ep /usr/bin/arp-scan \
+    && adduser -D -u 1000 hearth \
+    && mkdir -p /data \
+    && chown hearth:hearth /data
 COPY --from=server /hearth /usr/local/bin/hearth
 USER hearth
 EXPOSE 8080

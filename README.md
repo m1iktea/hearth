@@ -1,6 +1,6 @@
 # Hearth
 
-自研家庭中枢（home hub）。MVP 功能：导航页 + Proxmox VE / Docker / ImmortalWrt 状态监控 + 统一仪表盘。
+自研家庭中枢（home hub）。现有功能：导航页 + Proxmox VE / Docker / ImmortalWrt 状态监控 + 统一仪表盘，并提供局域网设备台账、Ping/TCP/HTTP 健康巡检和站内事件。
 
 ## 架构
 
@@ -13,6 +13,7 @@ collectors ──(每 10s 轮询)──▶ snapshot store（内存）──▶ R
 - **collectors**：Proxmox VE、Docker、ImmortalWrt 三路独立采集，互不干扰；未配置的源自动跳过
 - **snapshot store**：内存快照，按 source 键入，读写加锁；`/api/v1/status` 实时返回
 - **REST API**：`/api/v1/status*`（状态）、`/api/v1/nav*`（导航 CRUD），统一 `{"success","data","error"}` envelope
+- **设备中心**：主动 ARP 发现并自动纳管设备（MAC 去重），也支持补充管理入口与备注；不依赖 OpenWrt 是否为主 DHCP
 - **前端**：Vue 3 SPA 通过 `go:embed` 编译进单二进制，生产零额外依赖
 
 ## 技术栈
@@ -82,7 +83,8 @@ cd web && npm test
 
 ## 部署
 
-见 [docs/deploy.md](docs/deploy.md)（飞牛 NAS Docker 一键部署）。
+见 [docs/deploy.md](docs/deploy.md)（Docker 部署：标准网络或主机网络扫描模式）。
+
 
 ## 在 PVE 中创建只读用户
 
@@ -127,7 +129,7 @@ PVE_TOKEN_SECRET=<Secret>
 
 ## Roadmap
 
-- 设备控制：VM / 容器启停
-- 自动化联动规则
-- 通知聚合（微信 / 飞书）
+- OpenWrt / 其他数据源的可选设备自动发现
+- 通知聚合（微信 / 飞书）与自动化联动规则
 - 历史数据看板
+- 设备控制：VM / 容器启停（需认证、审计和二次确认）

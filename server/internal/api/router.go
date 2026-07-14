@@ -9,7 +9,7 @@ import (
 	"github.com/m1iktea/hearth/server/internal/store"
 )
 
-func NewRouter(snaps *store.SnapshotStore, nav *store.NavStore, dist fs.FS, logger *slog.Logger) http.Handler {
+func NewRouter(snaps *store.SnapshotStore, nav *store.NavStore, inventory *store.InventoryStore, arpScanner arpScanner, dist fs.FS, logger *slog.Logger) http.Handler {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("GET /api/v1/healthz", func(w http.ResponseWriter, r *http.Request) {
@@ -21,6 +21,7 @@ func NewRouter(snaps *store.SnapshotStore, nav *store.NavStore, dist fs.FS, logg
 	mux.HandleFunc("GET /api/v1/status/{source}", sh.bySource)
 
 	registerNavRoutes(mux, nav) // Task 10 实现；本 Task 先提供空实现避免编译失败
+	registerInventoryRoutes(mux, inventory, arpScanner)
 
 	mux.Handle("/", spaHandler(dist))
 

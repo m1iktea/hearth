@@ -68,3 +68,36 @@ export interface NavCategory {
   sort_order: number
   items: NavItem[]
 }
+
+export interface Device {
+  id: number
+  name: string
+  kind: string
+  hostname: string
+  ip_address: string
+  mac_address: string
+  location: string
+  notes: string
+  url: string
+  enabled: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface HealthCheck {
+  id: number
+  device_id: number
+  name: string
+  type: 'ping' | 'tcp' | 'http'
+  target: string
+  port: number
+  expected_status: number
+  enabled: boolean
+  last_status: 'unknown' | 'online' | 'offline'
+  last_error: string
+  latency_ms: number
+  checked_at?: string
+}
+export interface DeviceDetail { device: Device; checks: HealthCheck[] }
+export interface Event { id: number; device_id: number; device_name: string; check_id: number; type: string; severity: 'info' | 'warning'; title: string; message: string; created_at: string }
+export interface DiscoveryResult { devices: { device: Device; is_new: boolean; vendor: string }[]; new_count: number; updated_count: number }

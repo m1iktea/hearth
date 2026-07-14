@@ -1,9 +1,9 @@
-# 部署指南（飞牛 NAS Docker）
+# Docker 部署指南
 
 ## 前置条件
 
-- 飞牛 NAS 可 SSH 访问
-- 已安装 `docker` 和 `docker compose`（`docker compose version` 可正常输出）
+- 已安装 Docker 与 Docker Compose（`docker compose version` 可正常输出）
+- 若使用主机网络模式的 ARP 发现，Docker 主机须直接连接目标局域网
 
 ---
 
@@ -57,13 +57,15 @@ DOCKER_GID=999
 
 # ── 可选，以下为默认值 ──────────────────────────────────────────
 # HEARTH_POLL_INTERVAL=10s
+# HEARTH_HEALTH_INTERVAL=30s
+# HEARTH_SCAN_NETWORKS=192.168.1.0/24,192.168.10.0/24
 # HEARTH_LISTEN=:8080
 # HEARTH_DATA_DIR=/data
 ```
 
 ### 步骤 3：获取 docker.sock 的 GID
 
-容器以非 root 用户运行，需要知道宿主机 `docker.sock` 所属组 GID 才能读取 socket：
+容器以非 root 用户运行，需要知道 Docker 主机上 `docker.sock` 所属组 GID 才能读取 socket：
 
 ```bash
 stat -c %g /var/run/docker.sock
@@ -71,14 +73,46 @@ stat -c %g /var/run/docker.sock
 
 把输出的数字填进 `deploy/.env` 的 `DOCKER_GID=`。
 
-### 步骤 4：启动
+### 步骤 4：选择部署模式并启动
+
+| 模式 | Compose 文件 | 网络方式 | ARP 主动发现 |
+|---|---|---|---|
+| 标准 Docker | `docker-compose.yml` | bridge + `8080:8080` | 不支持（明确禁用） |
+| 主机网络 Docker | `docker-compose.host-network.yml` | host | 支持同一二层 VLAN 的设备扫描 |
+
+标准 Docker 模式：
 
 ```bash
 cd deploy
 docker compose up -d --build
 ```
 
-服务启动后访问 `http://<NAS-IP>:8080`。
+服务通过 `http://<Docker主机IP>:8080` 访问。
+
+需要主动扫描局域网设备时，使用主机网络 Docker 模式：
+
+```bash
+cd deploy
+docker compose -f docker-compose.host-network.yml up -d --build
+```
+
+主机网络模式没有端口映射，服务直接监听 `HEARTH_LISTEN`（默认 `:8080`），通过 `http://<Docker主机IP>:8080` 访问。
+
+## 健康检查说明
+
+在「设备中心」手工录入设备后，可在设备详情添加三类检查：
+
+- **Ping**：使用设备 IP（或自定义目标）检测网络可达性；Compose 已授予 `NET_RAW` 能力。
+- **TCP**：检测指定 IP/主机名与端口，例如 NAS 的 `443` 或 SSH 的 `22`。
+- **HTTP**：检测完整 URL；默认接受 2xx/3xx，也可指定期望状态码。
+
+Hearth 不假设 ImmortalWrt 是主路由或 DHCP 服务器；设备发现以主动 ARP 为主，仍可在设备详情补充管理入口和备注。状态切换会记录在「健康中心」的站内事件列表中。
+
+### 主动 ARP 发现
+
+主机网络 Docker 模式下，「设备中心」的“扫描局域网”会运行 ARP 扫描，并按 MAC 地址自动去重、更新已有设备的 IP、新增首次发现的设备。默认扫描 Docker 主机所在的本地二层网段；若主机直接连接多个 VLAN/网段，可设置 `HEARTH_SCAN_NETWORKS` 为以逗号分隔的 CIDR。标准 Docker 模式明确禁用该操作。
+
+ARP 广播只能发现**同一二层 VLAN**内的设备；位于路由后的 VLAN 需要让 Docker 主机接入对应 VLAN，或在后续版本使用 L3 的 Ping/TCP 探测补充。
 
 ---
 
@@ -87,7 +121,9 @@ docker compose up -d --build
 ```bash
 git pull
 cd deploy
+# 按当前使用的部署模式二选一
 docker compose up -d --build
+# 或：docker compose -f docker-compose.host-network.yml up -d --build
 ```
 
 ---
@@ -133,3 +169,4 @@ docker logs hearth
 - `deploy/.env` 含有凭据，已被 `.gitignore` 排除，**不要提交到版本库**
 - 容器以非 root 用户运行（Dockerfile 末阶段 `USER` 非 root）
 - `docker.sock` 以只读方式挂载（`:ro`），Hearth 只读取容器信息，不控制容器
+- Ping 健康检查和 ARP 扫描需要 `NET_RAW` capability；镜像仅给 `arp-scan` 可执行文件授予原始包能力，Hearth 服务仍以非 root 用户运行。若部署策略不允许，应禁用这两项能力并只使用 TCP/HTTP 检查

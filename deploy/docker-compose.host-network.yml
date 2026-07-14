@@ -1,0 +1,20 @@
+# 主机网络 Docker 部署：ARP 广播必须使用 Docker 主机的真实网卡。
+services:
+  hearth:
+    image: mi1ktea/hearth:latest
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    container_name: hearth
+    restart: unless-stopped
+    network_mode: host
+    env_file: .env
+    environment:
+      HEARTH_ARP_DISCOVERY_ENABLED: "true"
+    volumes:
+      - ./data:/data
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    group_add:
+      - "${DOCKER_GID:-999}"
+    cap_add:
+      - NET_RAW

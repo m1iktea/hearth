@@ -1,0 +1,13 @@
+.git
+.gitignore
+.github
+.env
+**/.env
+deploy/data
+node-compile-cache
+web/node_modules
+web/dist
+server/internal/webdist/dist
+**/*.db
+**/.DS_Store
+docs

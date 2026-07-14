@@ -10,6 +10,7 @@ import (
 	"testing/fstest"
 	"time"
 
+	"github.com/m1iktea/hearth/server/internal/discovery"
 	"github.com/m1iktea/hearth/server/internal/store"
 )
 
@@ -21,8 +22,13 @@ func newTestRouter(t *testing.T) (http.Handler, *store.SnapshotStore, *store.Nav
 		t.Fatalf("OpenNav: %v", err)
 	}
 	t.Cleanup(func() { nav.Close() })
+	inventory, err := store.OpenInventory(t.TempDir() + "/inventory.db")
+	if err != nil {
+		t.Fatalf("OpenInventory: %v", err)
+	}
+	t.Cleanup(func() { inventory.Close() })
 	dist := fstest.MapFS{"index.html": &fstest.MapFile{Data: []byte("<html>hearth</html>")}}
-	return NewRouter(snaps, nav, dist, slog.Default()), snaps, nav
+	return NewRouter(snaps, nav, inventory, discovery.NewARPScanner(nil), dist, slog.Default()), snaps, nav
 }
 
 type envelope struct {
