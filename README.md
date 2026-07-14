@@ -38,7 +38,7 @@ hearth/
 │       └── webdist/                    # go:embed 前端构建产物
 ├── web/                                # Vue 3 + Vite + TS 前端
 ├── deploy/                             # Dockerfile / docker-compose.yml / .env.example
-└── docs/deploy.md                      # 部署指南
+└── docs/                               # 产品文档（product.md）与技术文档（technical.md，含部署指南）
 ```
 
 ## 快速开始（本地开发）
@@ -83,7 +83,7 @@ cd web && npm test
 
 ## 部署
 
-见 [docs/deploy.md](docs/deploy.md)（Docker 部署：标准网络或主机网络扫描模式）。
+见 [docs/technical.md](docs/technical.md)「部署」一节（Docker 部署：标准网络或主机网络扫描模式）。
 
 
 ## 在 PVE 中创建只读用户
