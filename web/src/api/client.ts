@@ -10,7 +10,13 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
     headers: body ? { 'Content-Type': 'application/json' } : undefined,
     body: body ? JSON.stringify(body) : undefined,
   })
-  const env = (await res.json()) as ApiResponse<T>
+  // 响应体可能为空或非 JSON（如进程崩溃、网关 502），不能让 JSON 解析异常盖过真实状态码
+  let env: ApiResponse<T>
+  try {
+    env = (await res.json()) as ApiResponse<T>
+  } catch {
+    throw new Error(`HTTP ${res.status}：服务无响应内容，请检查后端日志`)
+  }
   if (!res.ok || !env.success) {
     throw new Error(env.error ?? `HTTP ${res.status}`)
   }

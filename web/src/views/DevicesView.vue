@@ -8,7 +8,7 @@ const store = useInventoryStore()
 const router = useRouter()
 const modal = ref(false); const scanning = ref(false); const scanMessage = ref('')
 const form = reactive({ name: '', kind: 'other', hostname: '', ip_address: '', mac_address: '', location: '', notes: '', url: '', enabled: true })
-onMounted(() => store.loadDevices())
+onMounted(() => { store.loadDevices(); store.loadCapabilities() })
 function reset() { Object.assign(form, { name: '', kind: 'other', hostname: '', ip_address: '', mac_address: '', location: '', notes: '', url: '', enabled: true }) }
 async function save() { if (!form.name.trim()) return; await store.createDevice(form); modal.value = false; reset(); await store.loadDevices() }
 async function remove(id: number) { await store.deleteDevice(id); await store.loadDevices() }
@@ -17,8 +17,8 @@ async function scan() { scanning.value = true; scanMessage.value = ''; try { con
 
 <template>
   <n-space justify="space-between" align="center" style="margin-bottom: 16px">
-    <div><h2 style="margin: 0">设备中心</h2><span style="opacity: .65">主动 ARP 发现，按 MAC 自动去重并纳管；可补充管理入口和备注</span></div>
-    <n-space><n-button :loading="scanning" @click="scan">扫描局域网</n-button><n-button type="primary" @click="modal = true">＋ 添加设备</n-button></n-space>
+    <div><h2 style="margin: 0">设备中心</h2><span style="opacity: .65">{{ store.arpDiscovery ? '主动 ARP 发现，按 MAC 自动去重并纳管；可补充管理入口和备注' : '手动录入设备并纳管；可补充管理入口和备注' }}</span></div>
+    <n-space><n-button v-if="store.arpDiscovery" :loading="scanning" @click="scan">扫描局域网</n-button><n-button type="primary" @click="modal = true">＋ 添加设备</n-button></n-space>
   </n-space>
   <n-alert v-if="store.error" type="error" style="margin-bottom: 16px">{{ store.error }}</n-alert>
   <n-alert v-if="scanMessage" type="success" style="margin-bottom: 16px">{{ scanMessage }}</n-alert>

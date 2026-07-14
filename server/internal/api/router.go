@@ -6,22 +6,35 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/m1iktea/hearth/server/internal/discovery"
 	"github.com/m1iktea/hearth/server/internal/store"
 )
 
-func NewRouter(snaps *store.SnapshotStore, nav *store.NavStore, inventory *store.InventoryStore, arpScanner arpScanner, dist fs.FS, logger *slog.Logger) http.Handler {
+func NewRouter(snaps *store.SnapshotStore, nav *store.NavStore, inventory *store.InventoryStore, scanner *discovery.ARPScanner, dist fs.FS, logger *slog.Logger) http.Handler {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("GET /api/v1/healthz", func(w http.ResponseWriter, r *http.Request) {
 		writeOK(w, "ok")
 	})
 
+	// 能力开关：前端据此隐藏不可用的功能入口（如 ARP 扫描按钮）
+	mux.HandleFunc("GET /api/v1/capabilities", func(w http.ResponseWriter, r *http.Request) {
+		writeOK(w, map[string]bool{"arp_discovery": scanner != nil})
+	})
+
 	sh := &statusHandler{snaps: snaps}
 	mux.HandleFunc("GET /api/v1/status", sh.all)
 	mux.HandleFunc("GET /api/v1/status/{source}", sh.bySource)
 
+	// typed-nil 归一：*ARPScanner 的 nil 直接塞进接口后接口不等于 nil，
+	// 会绕过 handler 的未启用保护并在 nil 接收者上 panic
+	var arpScan arpScanner
+	if scanner != nil {
+		arpScan = scanner
+	}
+
 	registerNavRoutes(mux, nav) // Task 10 实现；本 Task 先提供空实现避免编译失败
-	registerInventoryRoutes(mux, inventory, arpScanner)
+	registerInventoryRoutes(mux, inventory, arpScan)
 	registerMetricsRoutes(mux, inventory)
 
 	mux.Handle("/", spaHandler(dist))
