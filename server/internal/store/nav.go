@@ -26,6 +26,8 @@ type Item struct {
 	URL        string `json:"url"`
 	Icon       string `json:"icon"`
 	SortOrder  int    `json:"sort_order"`
+	// DeviceID 关联设备台账中的设备；可空，一个设备最多关联一个导航项。
+	DeviceID *int64 `json:"device_id,omitempty"`
 }
 
 const navSchema = `
@@ -52,10 +54,50 @@ func OpenNav(path string) (*NavStore, error) {
 		db.Close()
 		return nil, fmt.Errorf("init schema: %w", err)
 	}
-	return &NavStore{db: db}, nil
+	s := &NavStore{db: db}
+	if err := s.MigrateDeviceID(); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("migrate device_id: %w", err)
+	}
+	return s, nil
 }
 
 func (n *NavStore) Close() error { return n.db.Close() }
+
+// MigrateDeviceID 幂等地为 nav_items 添加 device_id 列和唯一索引。
+// SQLite ALTER TABLE ADD COLUMN 若列已存在会报错，用 PRAGMA 提前检查。
+func (n *NavStore) MigrateDeviceID() error {
+	// 检查列是否已存在
+	rows, err := n.db.Query(`PRAGMA table_info(nav_items)`)
+	if err != nil {
+		return fmt.Errorf("pragma table_info: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var cid int
+		var name, colType string
+		var notNull, pk int
+		var dflt sql.NullString
+		if err := rows.Scan(&cid, &name, &colType, &notNull, &dflt, &pk); err != nil {
+			return fmt.Errorf("scan table_info: %w", err)
+		}
+		if name == "device_id" {
+			return nil // 已存在，幂等返回
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("iterate table_info: %w", err)
+	}
+
+	// 添加列与唯一索引（device_id 为 NULL 时不参与唯一约束，符合 SQLite NULL != NULL 语义）
+	if _, err := n.db.Exec(`ALTER TABLE nav_items ADD COLUMN device_id INTEGER`); err != nil {
+		return fmt.Errorf("alter table add device_id: %w", err)
+	}
+	if _, err := n.db.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_nav_items_device_id ON nav_items(device_id) WHERE device_id IS NOT NULL`); err != nil {
+		return fmt.Errorf("create unique index device_id: %w", err)
+	}
+	return nil
+}
 
 func (n *NavStore) ListCategories() ([]Category, error) {
 	rows, err := n.db.Query(`SELECT id, name, sort_order FROM nav_categories ORDER BY sort_order, id`)
@@ -79,14 +121,14 @@ func (n *NavStore) ListCategories() ([]Category, error) {
 		return nil, err
 	}
 
-	itemRows, err := n.db.Query(`SELECT id, category_id, name, url, icon, sort_order FROM nav_items ORDER BY sort_order, id`)
+	itemRows, err := n.db.Query(`SELECT id, category_id, name, url, icon, sort_order, device_id FROM nav_items ORDER BY sort_order, id`)
 	if err != nil {
 		return nil, err
 	}
 	defer itemRows.Close()
 	for itemRows.Next() {
 		var it Item
-		if err := itemRows.Scan(&it.ID, &it.CategoryID, &it.Name, &it.URL, &it.Icon, &it.SortOrder); err != nil {
+		if err := itemRows.Scan(&it.ID, &it.CategoryID, &it.Name, &it.URL, &it.Icon, &it.SortOrder, &it.DeviceID); err != nil {
 			return nil, err
 		}
 		if i, ok := index[it.CategoryID]; ok {
@@ -123,11 +165,11 @@ func (n *NavStore) DeleteCategory(id int64) error {
 
 func (n *NavStore) CreateItem(it Item) (Item, error) {
 	res, err := n.db.Exec(
-		`INSERT INTO nav_items (category_id, name, url, icon, sort_order) VALUES (?, ?, ?, ?, ?)`,
-		it.CategoryID, it.Name, it.URL, it.Icon, it.SortOrder,
+		`INSERT INTO nav_items (category_id, name, url, icon, sort_order, device_id) VALUES (?, ?, ?, ?, ?, ?)`,
+		it.CategoryID, it.Name, it.URL, it.Icon, it.SortOrder, it.DeviceID,
 	)
 	if err != nil {
-		return Item{}, err
+		return Item{}, fmt.Errorf("insert nav_item: %w", err)
 	}
 	it.ID, _ = res.LastInsertId()
 	return it, nil
@@ -135,11 +177,11 @@ func (n *NavStore) CreateItem(it Item) (Item, error) {
 
 func (n *NavStore) UpdateItem(it Item) (Item, error) {
 	res, err := n.db.Exec(
-		`UPDATE nav_items SET category_id = ?, name = ?, url = ?, icon = ?, sort_order = ? WHERE id = ?`,
-		it.CategoryID, it.Name, it.URL, it.Icon, it.SortOrder, it.ID,
+		`UPDATE nav_items SET category_id = ?, name = ?, url = ?, icon = ?, sort_order = ?, device_id = ? WHERE id = ?`,
+		it.CategoryID, it.Name, it.URL, it.Icon, it.SortOrder, it.DeviceID, it.ID,
 	)
 	if err != nil {
-		return Item{}, err
+		return Item{}, fmt.Errorf("update nav_item: %w", err)
 	}
 	if rows, _ := res.RowsAffected(); rows == 0 {
 		return Item{}, sql.ErrNoRows
@@ -150,4 +192,17 @@ func (n *NavStore) UpdateItem(it Item) (Item, error) {
 func (n *NavStore) DeleteItem(id int64) error {
 	_, err := n.db.Exec(`DELETE FROM nav_items WHERE id = ?`, id)
 	return err
+}
+
+// GetItemByDeviceID 返回与指定设备关联的导航项；若不存在返回 sql.ErrNoRows。
+func (n *NavStore) GetItemByDeviceID(deviceID int64) (Item, error) {
+	var it Item
+	err := n.db.QueryRow(
+		`SELECT id, category_id, name, url, icon, sort_order, device_id FROM nav_items WHERE device_id = ?`,
+		deviceID,
+	).Scan(&it.ID, &it.CategoryID, &it.Name, &it.URL, &it.Icon, &it.SortOrder, &it.DeviceID)
+	if err != nil {
+		return Item{}, err
+	}
+	return it, nil
 }
