@@ -68,25 +68,76 @@ watchEffect(async (onCleanup) => {
 
 const hasData = computed(() => series.value.some((s) => s.data.length > 0))
 
+const PALETTE = ['#4E7CF6', '#22B07D', '#F2A93B', '#8B5CF6', '#E45B5B', '#2AA7B8', '#D96BB0', '#7E8B9E']
+
 const chartOption = computed(() => ({
+  color: PALETTE,
+  animationDuration: 200,
   tooltip: {
     trigger: 'axis',
+    backgroundColor: '#fff',
+    borderColor: 'rgba(0,0,0,0.08)',
+    borderWidth: 1,
+    extraCssText: 'box-shadow:0 2px 8px rgba(0,0,0,0.08);',
+    axisPointer: {
+      type: 'line',
+      lineStyle: { type: 'dashed', color: 'rgba(0,0,0,0.2)', width: 1 },
+    },
     formatter: (params: { seriesName: string; value: [string, number] }[]) =>
       params.map((p) => `${p.seriesName}: ${p.value[1]}${props.unit ?? '%'}`).join('<br/>'),
   },
-  legend: { bottom: 0 },
-  grid: { left: 48, right: 16, top: 12, bottom: 36 },
+  legend: {
+    bottom: 0,
+    icon: 'roundRect',
+    itemWidth: 12,
+    itemHeight: 3,
+    textStyle: { fontSize: 11, color: 'rgba(0,0,0,0.55)' },
+  },
+  grid: { left: 52, right: 16, top: 16, bottom: 40, containLabel: true },
   xAxis: {
     type: 'time',
-    axisLabel: { formatter: (v: number) => new Date(v).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }) },
+    axisLine: { lineStyle: { color: 'rgba(0,0,0,0.15)' } },
+    axisTick: { show: false },
+    axisLabel: {
+      fontSize: 11,
+      color: 'rgba(0,0,0,0.45)',
+      formatter: (v: number) => new Date(v).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
+    },
+    splitLine: { show: false },
   },
   yAxis: {
     type: 'value',
     min: 0,
     max: props.unit ? undefined : 100,
-    axisLabel: { formatter: (v: number) => `${v}${props.unit ?? '%'}` },
+    axisLine: { show: false },
+    axisTick: { show: false },
+    axisLabel: {
+      fontSize: 11,
+      color: 'rgba(0,0,0,0.45)',
+      formatter: (v: number) => `${v}${props.unit ?? '%'}`,
+    },
+    splitLine: { lineStyle: { type: 'dashed', color: 'rgba(0,0,0,0.06)' } },
   },
-  series: series.value,
+  series: series.value.map((s, idx) => {
+    const baseColor = PALETTE[idx % PALETTE.length]
+    return {
+      ...s,
+      showSymbol: false,
+      smooth: 0.3,
+      lineStyle: { width: 1.8 },
+      emphasis: { focus: 'series' },
+      areaStyle: {
+        color: {
+          type: 'linear',
+          x: 0, y: 0, x2: 0, y2: 1,
+          colorStops: [
+            { offset: 0, color: baseColor + '2e' },
+            { offset: 1, color: baseColor + '00' },
+          ],
+        },
+      },
+    }
+  }),
 }))
 </script>
 
