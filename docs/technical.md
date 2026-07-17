@@ -30,7 +30,7 @@ ARP 扫描、资产、健康巡检、事件 ────────────
 | `health` | 对设备执行 Ping、TCP、HTTP 检查，记录最新结果和状态变化事件 |
 | `store` | 内存快照与 SQLite 数据访问 |
 | `api` | REST API、SPA 托管、请求日志和未来认证插槽 |
-| `web` | Vue 前端，提供运维概览、导航、节点、设备和健康中心 |
+| `web` | Vue 前端，提供运维概览、导航、节点、设备和健康中心；仪表盘资源趋势区块（`TrendSection` / `MetricChart`）使用 `echarts` + `vue-echarts` 渲染折线图 |
 
 ## 3. API 概览
 
@@ -40,8 +40,9 @@ ARP 扫描、资产、健康巡检、事件 ────────────
 |---|---|---|
 | GET | `/healthz` | 存活探针 |
 | GET | `/status`、`/status/{source}` | collector 实时快照 |
-| GET/POST/PUT/DELETE | `/nav`、`/nav/categories`、`/nav/items` | 导航分类与链接管理 |
+| GET/POST/PUT/DELETE | `/nav`、`/nav/categories`、`/nav/items` | 导航分类与链接管理；`nav_items` 含可空 `device_id`，一设备最多关联一个导航项；写操作校验设备存在性（422）与唯一关联（409） |
 | GET/POST/PUT/DELETE | `/devices` | 设备资产管理 |
+| GET | `/devices/{id}` | 设备详情，响应 `data` 附带 `nav_item` 字段（未关联时为 `null`） |
 | POST/PUT/DELETE | `/devices/{id}/checks` | Ping/TCP/HTTP 检查管理 |
 | GET | `/health`、`/events` | 当前健康结果与最近状态事件 |
 | POST | `/discovery/arp` | 执行 ARP 扫描（仅启用时可用） |
