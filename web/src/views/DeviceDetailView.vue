@@ -31,8 +31,7 @@ async function load() {
 }
 
 onMounted(async () => {
-  await navStore.load()
-  await load()
+  await Promise.all([navStore.load(), load()])
 })
 
 // 未被其他设备占用的导航项（device_id 为空，或已关联当前设备的条目）
@@ -80,6 +79,7 @@ async function saveLink() {
     linkError.value = ''
     await navStore.linkDevice(linkItemId.value, id)
     linkModal.value = false
+    linkItemId.value = null
     await load()
   } catch (e) {
     linkError.value = String(e)

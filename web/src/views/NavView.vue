@@ -20,7 +20,6 @@ const deviceStatusMap = computed(() => buildDeviceStatusMap(inventoryStore.healt
 
 onMounted(() => {
   store.load()
-  inventoryStore.loadDevices()
   inventoryStore.loadHealth()
 })
 
