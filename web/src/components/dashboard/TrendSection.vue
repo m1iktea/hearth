@@ -29,6 +29,11 @@ const dockerCpuDefs: SeriesDef[] = [
   { label: 'Docker CPU', params: { source: 'docker', metric: 'cpu_pct' } },
 ]
 
+// Docker 容器内存趋势：source=docker，metric=mem_pct
+const dockerMemDefs: SeriesDef[] = [
+  { label: 'Docker 内存', params: { source: 'docker', metric: 'mem_pct' } },
+]
+
 // OpenWrt 内存趋势：source=openwrt，metric=mem_used_pct；object 为路由器 hostname
 const openwrtMemDefs: SeriesDef[] = [
   { label: 'OpenWrt 内存', params: { source: 'openwrt', metric: 'mem_used_pct' } },
@@ -64,6 +69,13 @@ const openwrtMemDefs: SeriesDef[] = [
         <n-space vertical :size="4">
           <span style="font-size: 13px; opacity: .75">Docker 容器 CPU %</span>
           <MetricChart title="Docker CPU" :series-defs="dockerCpuDefs" :time-range-hours="timeRange" />
+        </n-space>
+      </n-gi>
+
+      <n-gi span="2 m:1">
+        <n-space vertical :size="4">
+          <span style="font-size: 13px; opacity: .75">Docker 容器内存 %</span>
+          <MetricChart title="Docker 容器内存" :series-defs="dockerMemDefs" :time-range-hours="timeRange" />
         </n-space>
       </n-gi>
 
