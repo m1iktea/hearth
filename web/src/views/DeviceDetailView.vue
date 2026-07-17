@@ -73,6 +73,18 @@ function statusType(status: string) {
   return status === 'online' ? 'success' : status === 'offline' ? 'error' : 'default'
 }
 
+function friendlyLinkError(e: unknown): string {
+  const msg = e instanceof Error ? e.message : String(e)
+  if (msg.includes('already linked') || msg.includes('HTTP 409')) {
+    return '该设备已被其他导航入口关联'
+  }
+  if (msg.includes('device not found') || msg.includes('HTTP 422')) {
+    return '设备不存在或已被删除'
+  }
+  console.error('[link] 未知错误：', e)
+  return '操作失败，请稍后重试'
+}
+
 async function saveLink() {
   if (!detail.value || linkItemId.value == null) return
   try {
@@ -82,7 +94,7 @@ async function saveLink() {
     linkItemId.value = null
     await load()
   } catch (e) {
-    linkError.value = String(e)
+    linkError.value = friendlyLinkError(e)
   }
 }
 
@@ -93,7 +105,7 @@ async function removeLink() {
     await navStore.unlinkDevice(detail.value.nav_item.id)
     await load()
   } catch (e) {
-    linkError.value = String(e)
+    linkError.value = friendlyLinkError(e)
   }
 }
 </script>
