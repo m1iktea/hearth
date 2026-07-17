@@ -8,24 +8,20 @@ import SiteIcon from '../components/SiteIcon.vue'
 import { useNavStore } from '../stores/nav'
 import { useInventoryStore } from '../stores/inventory'
 import { suggestNameFromURL } from '../utils/navCategory'
+import { buildDeviceStatusMap } from '../utils/deviceStatus'
 import type { CategorySelection } from '../utils/navCategory'
 import type { NavItem } from '../types'
 
 const store = useNavStore()
 const inventoryStore = useInventoryStore()
 
-// 按设备 id 索引在线状态（来自台账已有数据，不新增轮询）
-const deviceStatusMap = computed(() => {
-  const map = new Map<number, 'online' | 'offline' | 'unknown'>()
-  for (const device of inventoryStore.devices) {
-    map.set(device.id, 'unknown')
-  }
-  return map
-})
+// 按设备 id 索引在线状态：任一 check last_status 为 online → online；有 check 但全非 online → offline；无 check → unknown
+const deviceStatusMap = computed(() => buildDeviceStatusMap(inventoryStore.health))
 
 onMounted(() => {
   store.load()
   inventoryStore.loadDevices()
+  inventoryStore.loadHealth()
 })
 
 const manageMode = ref(false)
