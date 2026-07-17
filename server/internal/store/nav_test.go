@@ -1,6 +1,7 @@
 package store
 
 import (
+	"database/sql"
 	"path/filepath"
 	"testing"
 )
@@ -76,6 +77,60 @@ func TestDeleteCategoryCascadesItems(t *testing.T) {
 	cats, _ := n.ListCategories()
 	if len(cats) != 0 {
 		t.Errorf("want cascade delete, got %+v", cats)
+	}
+}
+
+// TestNavMigrateDeviceID_ExistingColumnNoIndex 验证：历史库有 device_id 列但无唯一索引时，
+// MigrateDeviceID 能补建索引（重复 device_id 插入应报错）。
+func TestNavMigrateDeviceID_ExistingColumnNoIndex(t *testing.T) {
+	// 直接打开 SQLite，手工建含 device_id 列但无索引的表
+	dbPath := filepath.Join(t.TempDir(), "legacy.db")
+	db, err := sql.Open("sqlite", sqliteDSN(dbPath))
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	// 建表（含 device_id 列，故意不建索引，模拟历史库）
+	_, err = db.Exec(`
+		CREATE TABLE nav_categories (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			name TEXT NOT NULL,
+			sort_order INTEGER NOT NULL DEFAULT 0
+		);
+		CREATE TABLE nav_items (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			category_id INTEGER NOT NULL REFERENCES nav_categories(id) ON DELETE CASCADE,
+			name TEXT NOT NULL,
+			url TEXT NOT NULL,
+			icon TEXT NOT NULL DEFAULT '',
+			sort_order INTEGER NOT NULL DEFAULT 0,
+			device_id INTEGER
+		);
+	`)
+	if err != nil {
+		db.Close()
+		t.Fatalf("create legacy schema: %v", err)
+	}
+	db.Close()
+
+	// 通过 NavStore 打开同一个库，触发 MigrateDeviceID
+	n, err := OpenNav(dbPath)
+	if err != nil {
+		t.Fatalf("OpenNav on legacy db: %v", err)
+	}
+	t.Cleanup(func() { n.Close() })
+
+	// 验证唯一索引已补建：插入同一 device_id 的两条记录应触发约束错误
+	cat, err := n.CreateCategory("测试", 0)
+	if err != nil {
+		t.Fatalf("CreateCategory: %v", err)
+	}
+	deviceID := int64(99)
+	if _, err := n.CreateItem(Item{CategoryID: cat.ID, Name: "A", URL: "http://a", DeviceID: &deviceID}); err != nil {
+		t.Fatalf("first insert: %v", err)
+	}
+	_, err = n.CreateItem(Item{CategoryID: cat.ID, Name: "B", URL: "http://b", DeviceID: &deviceID})
+	if err == nil {
+		t.Fatal("expected unique constraint error on duplicate device_id, got nil")
 	}
 }
 

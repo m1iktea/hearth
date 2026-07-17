@@ -179,7 +179,7 @@ func (h *navHandler) deleteItem(w http.ResponseWriter, r *http.Request) {
 func (h *navHandler) checkDeviceExists(w http.ResponseWriter, deviceID int64) error {
 	_, err := h.inventory.GetDevice(deviceID)
 	if errors.Is(err, sql.ErrNoRows) {
-		writeError(w, 422, fmt.Sprintf("device %d not found", deviceID))
+		writeError(w, 422, "device not found")
 		return err
 	}
 	if err != nil {
@@ -203,7 +203,7 @@ func (h *navHandler) checkDeviceNotLinked(w http.ResponseWriter, deviceID int64,
 	if existing.ID == skipItemID {
 		return nil // 更新自身，允许
 	}
-	writeError(w, http.StatusConflict, fmt.Sprintf("device %d is already linked to nav item %d", deviceID, existing.ID))
+	writeError(w, http.StatusConflict, "device is already linked to another nav item")
 	return fmt.Errorf("conflict")
 }
 

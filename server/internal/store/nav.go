@@ -66,6 +66,7 @@ func (n *NavStore) Close() error { return n.db.Close() }
 
 // MigrateDeviceID 幂等地为 nav_items 添加 device_id 列和唯一索引。
 // SQLite ALTER TABLE ADD COLUMN 若列已存在会报错，用 PRAGMA 提前检查。
+// 列检查与索引创建解耦：列已存在时仅跳过 ALTER TABLE，唯一索引无论如何都执行（IF NOT EXISTS 保证幂等）。
 func (n *NavStore) MigrateDeviceID() error {
 	// 检查列是否已存在
 	rows, err := n.db.Query(`PRAGMA table_info(nav_items)`)
@@ -73,6 +74,7 @@ func (n *NavStore) MigrateDeviceID() error {
 		return fmt.Errorf("pragma table_info: %w", err)
 	}
 	defer rows.Close()
+	columnExists := false
 	for rows.Next() {
 		var cid int
 		var name, colType string
@@ -82,17 +84,22 @@ func (n *NavStore) MigrateDeviceID() error {
 			return fmt.Errorf("scan table_info: %w", err)
 		}
 		if name == "device_id" {
-			return nil // 已存在，幂等返回
+			columnExists = true
 		}
 	}
 	if err := rows.Err(); err != nil {
 		return fmt.Errorf("iterate table_info: %w", err)
 	}
 
-	// 添加列与唯一索引（device_id 为 NULL 时不参与唯一约束，符合 SQLite NULL != NULL 语义）
-	if _, err := n.db.Exec(`ALTER TABLE nav_items ADD COLUMN device_id INTEGER`); err != nil {
-		return fmt.Errorf("alter table add device_id: %w", err)
+	// 列不存在时才执行 ALTER TABLE
+	if !columnExists {
+		if _, err := n.db.Exec(`ALTER TABLE nav_items ADD COLUMN device_id INTEGER`); err != nil {
+			return fmt.Errorf("alter table add device_id: %w", err)
+		}
 	}
+
+	// 唯一索引始终执行（IF NOT EXISTS 保证幂等）：确保历史库有列无索引时也能补建
+	// device_id 为 NULL 时不参与唯一约束，符合 SQLite NULL != NULL 语义
 	if _, err := n.db.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_nav_items_device_id ON nav_items(device_id) WHERE device_id IS NOT NULL`); err != nil {
 		return fmt.Errorf("create unique index device_id: %w", err)
 	}

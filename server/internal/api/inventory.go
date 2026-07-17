@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"os/exec"
 	"strconv"
@@ -80,8 +81,15 @@ func (h *inventoryHandler) getDevice(w http.ResponseWriter, r *http.Request) {
 	}
 	result := deviceDetailWithNav{DeviceDetail: v}
 	if h.nav != nil {
-		if navItem, err := h.nav.GetItemByDeviceID(v.Device.ID); err == nil {
+		navItem, err := h.nav.GetItemByDeviceID(v.Device.ID)
+		switch {
+		case err == nil:
 			result.NavItem = &navItem
+		case errors.Is(err, sql.ErrNoRows):
+			// 设备未关联导航项，正常跳过
+		default:
+			// 非预期 DB 错误：记日志但降级返回（不 500），避免因 nav 异常影响主设备数据展示
+			slog.Error("getDevice: failed to get nav item by device id", "device_id", v.Device.ID, "err", err)
 		}
 	}
 	writeOK(w, result)
