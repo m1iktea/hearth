@@ -3,12 +3,14 @@ import type { Plugin } from 'vite'
 /**
  * 本地演示用 mock 接口：`npm run dev:mock` 启用。
  * 覆盖仪表盘所需的全部 GET 接口；时间戳按请求时刻动态生成，
- * 相对时间展示（“已持续 N 分钟”）不会因数据固定而失真。
+ * 相对时间展示（”已持续 N 分钟”）不会因数据固定而失真。
  *
  * 演示场景：
  * - 严重：飞牛 NAS 的 HTTP 检查失败（502，已持续 12 分钟）
  * - 注意：immich 容器已退出；PVE 节点内存 89% 资源风险
- * - 提醒：路由器 wan6 / lan4 接口 down（共 5 项，可演示“查看全部”展开）
+ * - 提醒：路由器 wan6 / lan4 接口 down（共 5 项，可演示”查看全部”展开）
+ * - metrics 时序：proxmox/docker/openwrt 各对象 cpu_pct/mem_pct 可过滤
+ * - nav 关联设备：设备在线/离线角标演示
  */
 
 const minutesAgo = (min: number) => new Date(Date.now() - min * 60_000).toISOString()
@@ -175,16 +177,43 @@ function events() {
   ]
 }
 
-function nav() {
-  return [
+/**
+ * nav items 内存状态，支持 PUT /api/v1/nav/items/{id} 演示绑定/解绑设备。
+ * 使用数字 device_id：
+ *   - Jellyfin → device 3（飞牛 NAS），health offline → 角标显示离线
+ *   - Gitea    → device 7（树莓派），health online → 角标显示在线
+ *   - Gitea 下新增 ImmortalWrt → device 6（路由器），health offline → 角标显示离线
+ */
+const navState: {
+  categories: Array<{
+    id: number
+    name: string
+    sort_order: number
+    items: Array<{
+      id: number
+      category_id: number
+      name: string
+      url: string
+      icon: string
+      sort_order: number
+      device_id: number | null
+    }>
+  }>
+} = {
+  categories: [
     {
       id: 1, name: '常用服务', sort_order: 1,
       items: [
-        { id: 1, category_id: 1, name: 'Jellyfin', url: 'http://192.168.31.10:8096', icon: '', sort_order: 1 },
-        { id: 2, category_id: 1, name: 'Gitea', url: 'http://192.168.31.10:3000', icon: '', sort_order: 2 },
+        { id: 1, category_id: 1, name: 'Jellyfin', url: 'http://192.168.31.10:8096', icon: '', sort_order: 1, device_id: 3 },
+        { id: 2, category_id: 1, name: 'Gitea', url: 'http://192.168.31.10:3000', icon: '', sort_order: 2, device_id: 7 },
+        { id: 3, category_id: 1, name: 'ImmortalWrt', url: 'http://192.168.31.1', icon: '', sort_order: 3, device_id: 6 },
       ],
     },
-  ]
+  ],
+}
+
+function nav() {
+  return navState.categories
 }
 
 function deviceDetail(id: number) {
@@ -193,19 +222,135 @@ function deviceDetail(id: number) {
   const checks = health()
     .filter((c) => c.device_id === id)
     .map(({ device_name: _n, device_ip: _i, ...check }) => check)
-  return { device, checks }
+  // 若有 nav item 绑定了该设备，附加 nav_item 字段
+  const navItem = navState.categories
+    .flatMap((cat) => cat.items)
+    .find((item) => item.device_id === id) ?? null
+  return { device, checks, nav_item: navItem }
 }
 
-function resolveMock(path: string): unknown {
+// ── metrics 时序生成 ─────────────────────────────────────────────────────────
+
+interface MetricSample {
+  source: string
+  object: string
+  metric: string
+  value: number
+  created_at: string
+}
+
+/** 平滑伪随机：base ± amplitude，叠加 sin 波形 + 微扰 */
+function smoothValue(base: number, amplitude: number, tSec: number, seed: number): number {
+  const slow = Math.sin(tSec / 600 + seed) * amplitude * 0.6
+  const fast = Math.sin(tSec / 120 + seed * 2.3) * amplitude * 0.25
+  const micro = Math.sin(tSec / 30 + seed * 7.1) * amplitude * 0.15
+  return Math.max(0, Math.min(100, base + slow + fast + micro))
+}
+
+/** metric 定义：{ source, object, metric, base, amplitude, seed } */
+const METRIC_DEFS = [
+  // proxmox
+  { source: 'proxmox', object: 'pve-01', metric: 'cpu_pct',  base: 35, amplitude: 20, seed: 1.1 },
+  { source: 'proxmox', object: 'pve-01', metric: 'mem_pct',  base: 58, amplitude: 12, seed: 2.2 },
+  { source: 'proxmox', object: 'pve-02', metric: 'cpu_pct',  base: 22, amplitude: 15, seed: 3.3 },
+  { source: 'proxmox', object: 'pve-02', metric: 'mem_pct',  base: 65, amplitude: 10, seed: 4.4 },
+  // docker
+  { source: 'docker', object: 'hearth',       metric: 'cpu_pct',  base: 8,  amplitude: 8,  seed: 5.5 },
+  { source: 'docker', object: 'hearth',       metric: 'mem_pct',  base: 18, amplitude: 8,  seed: 6.6 },
+  { source: 'docker', object: 'gitea',        metric: 'cpu_pct',  base: 12, amplitude: 10, seed: 7.7 },
+  { source: 'docker', object: 'gitea',        metric: 'mem_pct',  base: 28, amplitude: 10, seed: 8.8 },
+  { source: 'docker', object: 'qbittorrent',  metric: 'cpu_pct',  base: 20, amplitude: 15, seed: 9.9 },
+  { source: 'docker', object: 'qbittorrent',  metric: 'mem_pct',  base: 32, amplitude: 12, seed: 10.1 },
+  { source: 'docker', object: 'frigate',      metric: 'cpu_pct',  base: 25, amplitude: 18, seed: 11.2 },
+  { source: 'docker', object: 'frigate',      metric: 'mem_pct',  base: 38, amplitude: 10, seed: 12.3 },
+  // openwrt
+  { source: 'openwrt', object: 'immortalwrt', metric: 'mem_used_pct', base: 40, amplitude: 10, seed: 13.4 },
+]
+
+/** 生成 since → now 每 60s 一个点的时序，按参数过滤 */
+function metrics(params: URLSearchParams): MetricSample[] {
+  const pSource = params.get('source')
+  const pObject = params.get('object')
+  const pMetric = params.get('metric')
+  const pSince  = params.get('since')
+  const pLimit  = params.get('limit')
+
+  const nowMs   = Date.now()
+  const sinceMs = pSince ? new Date(pSince).getTime() : nowMs - 60 * 60 * 1000 // 默认 1h
+
+  const stepMs  = 60_000 // 60s 一个点
+  const samples: MetricSample[] = []
+
+  const defs = METRIC_DEFS.filter((d) => {
+    if (pSource && d.source !== pSource) return false
+    if (pObject && d.object !== pObject) return false
+    if (pMetric && d.metric !== pMetric) return false
+    return true
+  })
+
+  for (const def of defs) {
+    let t = sinceMs
+    while (t <= nowMs) {
+      const tSec = t / 1000
+      const value = parseFloat(smoothValue(def.base, def.amplitude, tSec, def.seed).toFixed(1))
+      samples.push({
+        source: def.source,
+        object: def.object,
+        metric: def.metric,
+        value,
+        created_at: new Date(t).toISOString(),
+      })
+      t += stepMs
+    }
+  }
+
+  // 按时间升序
+  samples.sort((a, b) => a.created_at.localeCompare(b.created_at))
+
+  if (pLimit) {
+    const limit = parseInt(pLimit, 10)
+    if (!isNaN(limit) && limit > 0) return samples.slice(-limit)
+  }
+  return samples
+}
+
+function resolveMockGet(path: string, searchParams: URLSearchParams): unknown {
   if (path === '/api/v1/capabilities') return { arp_discovery: true }
   if (path === '/api/v1/status') return status()
   if (path === '/api/v1/health') return health()
   if (path === '/api/v1/events') return events()
   if (path === '/api/v1/devices') return devices()
   if (path === '/api/v1/nav') return nav()
+  if (path === '/api/v1/metrics') return metrics(searchParams)
   const detail = path.match(/^\/api\/v1\/devices\/(\d+)$/)
   if (detail) return deviceDetail(Number(detail[1]))
   return undefined
+}
+
+/** PUT /api/v1/nav/items/{id}：更新内存中的 device_id（null 解绑） */
+function handleNavItemPut(path: string, body: unknown): { status: number; data: unknown } {
+  const m = path.match(/^\/api\/v1\/nav\/items\/(\d+)$/)
+  if (!m) return { status: 404, data: null }
+  const id = Number(m[1])
+  for (const cat of navState.categories) {
+    const item = cat.items.find((it) => it.id === id)
+    if (item) {
+      const payload = body as Record<string, unknown>
+      if ('device_id' in payload) {
+        const raw = payload['device_id']
+        item.device_id = raw == null ? null : Number(raw)
+      }
+      // 允许更新其他字段
+      for (const key of ['name', 'url', 'icon', 'sort_order'] as const) {
+        if (key in payload && payload[key] !== undefined) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          ;(item as any)[key] = payload[key]
+        }
+      }
+      return { status: 200, data: item }
+    }
+  }
+  return { status: 404, data: null }
 }
 
 export function mockApi(): Plugin {
@@ -213,9 +358,28 @@ export function mockApi(): Plugin {
     name: 'hearth-mock-api',
     configureServer(server) {
       server.middlewares.use((req, res, next) => {
-        if ((req.method ?? 'GET') !== 'GET') return next()
-        const path = new URL(req.url ?? '', 'http://localhost').pathname
-        const data = resolveMock(path)
+        const method = req.method ?? 'GET'
+        const url = new URL(req.url ?? '', 'http://localhost')
+        const path = url.pathname
+
+        // ── PUT 支持 ──────────────────────────────────────────────
+        if (method === 'PUT' && path.startsWith('/api/v1/nav/items/')) {
+          let raw = ''
+          req.on('data', (chunk: Buffer) => { raw += chunk.toString() })
+          req.on('end', () => {
+            let body: unknown = {}
+            try { body = JSON.parse(raw) } catch { /* empty body */ }
+            const { status, data } = handleNavItemPut(path, body)
+            res.setHeader('Content-Type', 'application/json')
+            res.statusCode = status
+            res.end(JSON.stringify({ success: status === 200, data }))
+          })
+          return
+        }
+
+        // ── GET 支持 ──────────────────────────────────────────────
+        if (method !== 'GET') return next()
+        const data = resolveMockGet(path, url.searchParams)
         if (data === undefined) return next()
         res.setHeader('Content-Type', 'application/json')
         res.end(JSON.stringify({ success: true, data }))
