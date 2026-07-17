@@ -1,4 +1,5 @@
 <script setup lang="ts">
+// TODO: echarts 使 Dashboard chunk >500KB，功能稳定后可用异步组件或 manualChunks 拆分
 import { ref } from 'vue'
 import { NCard, NGi, NGrid, NRadioButton, NRadioGroup, NSpace } from 'naive-ui'
 import MetricChart from './MetricChart.vue'
@@ -16,27 +17,27 @@ const timeRangeOptions: { label: string; value: TimeRange }[] = [
 
 // PVE 节点 CPU 趋势：source=proxmox，metric=cpu_pct；每节点一条序列（不过滤 object，由 API 返回所有节点）
 const pveCpuDefs: SeriesDef[] = [
-  { label: 'PVE CPU', params: { source: 'proxmox', metric: 'cpu_pct' } },
+  { params: { source: 'proxmox', metric: 'cpu_pct' } },
 ]
 
 // PVE 节点内存趋势
 const pveMemDefs: SeriesDef[] = [
-  { label: 'PVE 内存', params: { source: 'proxmox', metric: 'mem_pct' } },
+  { params: { source: 'proxmox', metric: 'mem_pct' } },
 ]
 
 // Docker 容器 CPU 趋势：source=docker，metric=cpu_pct
 const dockerCpuDefs: SeriesDef[] = [
-  { label: 'Docker CPU', params: { source: 'docker', metric: 'cpu_pct' } },
+  { params: { source: 'docker', metric: 'cpu_pct' } },
 ]
 
 // Docker 容器内存趋势：source=docker，metric=mem_pct
 const dockerMemDefs: SeriesDef[] = [
-  { label: 'Docker 内存', params: { source: 'docker', metric: 'mem_pct' } },
+  { params: { source: 'docker', metric: 'mem_pct' } },
 ]
 
 // OpenWrt 内存趋势：source=openwrt，metric=mem_used_pct；object 为路由器 hostname
 const openwrtMemDefs: SeriesDef[] = [
-  { label: 'OpenWrt 内存', params: { source: 'openwrt', metric: 'mem_used_pct' } },
+  { params: { source: 'openwrt', metric: 'mem_used_pct' } },
 ]
 </script>
 

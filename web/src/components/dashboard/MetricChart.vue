@@ -10,13 +10,11 @@ import {
 import { CanvasRenderer } from 'echarts/renderers'
 import VChart from 'vue-echarts'
 import { NEmpty, NSpin } from 'naive-ui'
-import { buildEChartsSeries, queryMetrics, type MetricQueryParams } from '../../api/metrics'
+import { buildEChartsSeries, queryMetrics, type EChartsSeriesItem, type MetricQueryParams } from '../../api/metrics'
 
 use([LineChart, GridComponent, LegendComponent, TooltipComponent, CanvasRenderer])
 
 export interface SeriesDef {
-  /** 图例名称，同时也是传给 API 的 object 过滤值（若设置） */
-  label: string
   params: MetricQueryParams
 }
 
@@ -32,16 +30,12 @@ const props = defineProps<{
 const loading = ref(false)
 const error = ref('')
 
-interface SeriesData {
-  name: string
-  type: 'line'
-  smooth: boolean
-  data: [string, number][]
-}
+const series = ref<EChartsSeriesItem[]>([])
 
-const series = ref<SeriesData[]>([])
+watchEffect(async (onCleanup) => {
+  let cancelled = false
+  onCleanup(() => { cancelled = true })
 
-watchEffect(async () => {
   loading.value = true
   error.value = ''
   const since = new Date(Date.now() - props.timeRangeHours * 3600 * 1000).toISOString()
@@ -52,14 +46,24 @@ watchEffect(async () => {
     ),
   )
 
-  const allSeries: SeriesData[] = []
+  if (cancelled) return
+
+  const allSeries: EChartsSeriesItem[] = []
+  let failedCount = 0
   for (const result of results) {
     if (result.status === 'fulfilled') {
       allSeries.push(...buildEChartsSeries(result.value))
+    } else {
+      failedCount++
     }
   }
+
   series.value = allSeries
   loading.value = false
+
+  if (failedCount > 0) {
+    error.value = `${failedCount} 条序列加载失败`
+  }
 })
 
 const hasData = computed(() => series.value.some((s) => s.data.length > 0))
@@ -93,7 +97,8 @@ const chartOption = computed(() => ({
     </div>
     <template v-else-if="hasData">
       <v-chart :option="chartOption" style="height: 200px" autoresize />
+      <div v-if="error" style="font-size: 12px; color: #e88080; padding: 4px 0">{{ error }}</div>
     </template>
-    <n-empty v-else description="暂无数据" style="padding: 32px 0" />
+    <n-empty v-else :description="error || '暂无数据'" style="padding: 32px 0" />
   </div>
 </template>
