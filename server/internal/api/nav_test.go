@@ -127,6 +127,46 @@ func TestNavItemDeviceIDAPI(t *testing.T) {
 	if code != 422 {
 		t.Errorf("nonexistent device_id: want 422, got %d", code)
 	}
+
+	// --- PUT (update) 路径用例 ---
+
+	// 再建一个设备，用于"已被其他导航项占用"的场景
+	code, env = doJSON(t, h, "POST", "/api/v1/devices", `{"name":"Router","kind":"router","ip_address":"192.168.1.1","enabled":true}`)
+	if code != 200 || !env.Success {
+		t.Fatalf("create second device: %d %+v", code, env)
+	}
+	var device2 struct{ ID int64 `json:"id"` }
+	json.Unmarshal(env.Data, &device2)
+
+	// 用 device2 创建第二个导航项，使 device2 被占用
+	body4 := fmt.Sprintf(`{"category_id":%d,"name":"Router","url":"http://router","device_id":%d}`, cat.ID, device2.ID)
+	code, env = doJSON(t, h, "POST", "/api/v1/nav/items", body4)
+	if code != 200 || !env.Success {
+		t.Fatalf("create second item: %d %+v", code, env)
+	}
+	var item2 struct{ ID int64 `json:"id"` }
+	json.Unmarshal(env.Data, &item2)
+
+	// PUT：把 item 的 device_id 改成已被 item2 占用的 device2 → 期望 409
+	bodyConflict := fmt.Sprintf(`{"category_id":%d,"name":"NAS","url":"http://nas","device_id":%d}`, cat.ID, device2.ID)
+	code, _ = doJSON(t, h, "PUT", fmt.Sprintf("/api/v1/nav/items/%d", item.ID), bodyConflict)
+	if code != 409 {
+		t.Errorf("update with occupied device_id: want 409, got %d", code)
+	}
+
+	// PUT：把 item 的 device_id 改成不存在的设备 → 期望 422
+	bodyMissing := fmt.Sprintf(`{"category_id":%d,"name":"NAS","url":"http://nas","device_id":99999}`, cat.ID)
+	code, _ = doJSON(t, h, "PUT", fmt.Sprintf("/api/v1/nav/items/%d", item.ID), bodyMissing)
+	if code != 422 {
+		t.Errorf("update with nonexistent device_id: want 422, got %d", code)
+	}
+
+	// PUT：把 item 的 device_id 保持指向它自己已关联的 device（自我更新）→ 期望 200
+	bodySelf := fmt.Sprintf(`{"category_id":%d,"name":"NAS","url":"http://nas","device_id":%d}`, cat.ID, device.ID)
+	code, _ = doJSON(t, h, "PUT", fmt.Sprintf("/api/v1/nav/items/%d", item.ID), bodySelf)
+	if code != 200 {
+		t.Errorf("update self device_id: want 200, got %d", code)
+	}
 }
 
 func TestNavCategoryUpdate(t *testing.T) {
