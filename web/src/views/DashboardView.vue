@@ -16,6 +16,7 @@ import IssueSection from '../components/dashboard/IssueSection.vue'
 import InfraSection from '../components/dashboard/InfraSection.vue'
 import RiskList from '../components/dashboard/RiskList.vue'
 import EventList from '../components/dashboard/EventList.vue'
+import TrendSection from '../components/dashboard/TrendSection.vue'
 
 const STATUS_POLL_MS = 10_000
 const OVERVIEW_POLL_MS = 30_000
@@ -153,6 +154,10 @@ const quickLinks = [
         <EventList :events="overview.events.data" :now="now" />
       </n-gi>
     </n-grid>
+
+    <div class="dash-block">
+      <TrendSection />
+    </div>
 
     <div class="dash-quick">
       <n-button
