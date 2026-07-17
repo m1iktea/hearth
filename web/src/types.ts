@@ -63,6 +63,7 @@ export interface NavItem {
   url: string
   icon: string
   sort_order: number
+  device_id?: number
 }
 
 export interface NavCategory {
@@ -101,6 +102,6 @@ export interface HealthCheck {
   latency_ms: number
   checked_at?: string
 }
-export interface DeviceDetail { device: Device; checks: HealthCheck[] }
+export interface DeviceDetail { device: Device; checks: HealthCheck[]; nav_item?: NavItem }
 export interface Event { id: number; device_id: number; device_name: string; check_id: number; type: string; severity: 'info' | 'warning'; title: string; message: string; created_at: string }
 export interface DiscoveryResult { devices: { device: Device; is_new: boolean; vendor: string }[]; new_count: number; updated_count: number }

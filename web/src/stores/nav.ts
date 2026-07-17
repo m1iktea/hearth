@@ -31,10 +31,18 @@ export const useNavStore = defineStore('nav', {
       await this.load()
     },
     async saveItem(item: Omit<NavItem, 'id'> & { id?: number }) {
+      const body = {
+        category_id: item.category_id,
+        name: item.name,
+        url: item.url,
+        icon: item.icon,
+        sort_order: item.sort_order,
+        device_id: item.device_id ?? null,
+      }
       if (item.id) {
-        await apiPut(`/api/v1/nav/items/${item.id}`, item)
+        await apiPut(`/api/v1/nav/items/${item.id}`, body)
       } else {
-        await apiPost('/api/v1/nav/items', item)
+        await apiPost('/api/v1/nav/items', body)
       }
       await this.load()
     },
@@ -57,6 +65,34 @@ export const useNavStore = defineStore('nav', {
     },
     async deleteItem(id: number) {
       await apiDelete(`/api/v1/nav/items/${id}`)
+      await this.load()
+    },
+    async linkDevice(itemId: number, deviceId: number): Promise<void> {
+      const allItems = this.categories.flatMap((c) => c.items)
+      const item = allItems.find((i) => i.id === itemId)
+      if (!item) throw new Error(`nav item ${itemId} not found`)
+      await apiPut(`/api/v1/nav/items/${itemId}`, {
+        category_id: item.category_id,
+        name: item.name,
+        url: item.url,
+        icon: item.icon,
+        sort_order: item.sort_order,
+        device_id: deviceId,
+      })
+      await this.load()
+    },
+    async unlinkDevice(itemId: number): Promise<void> {
+      const allItems = this.categories.flatMap((c) => c.items)
+      const item = allItems.find((i) => i.id === itemId)
+      if (!item) throw new Error(`nav item ${itemId} not found`)
+      await apiPut(`/api/v1/nav/items/${itemId}`, {
+        category_id: item.category_id,
+        name: item.name,
+        url: item.url,
+        icon: item.icon,
+        sort_order: item.sort_order,
+        device_id: null,
+      })
       await this.load()
     },
   },
