@@ -2,16 +2,31 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import {
   NAlert, NButton, NCard, NForm, NFormItem, NGrid, NGi, NInput, NInputNumber,
-  NModal, NPopconfirm, NSelect, NSpace, NSwitch,
+  NModal, NPopconfirm, NSelect, NSpace, NSwitch, NTag,
 } from 'naive-ui'
 import SiteIcon from '../components/SiteIcon.vue'
 import { useNavStore } from '../stores/nav'
+import { useInventoryStore } from '../stores/inventory'
 import { suggestNameFromURL } from '../utils/navCategory'
 import type { CategorySelection } from '../utils/navCategory'
 import type { NavItem } from '../types'
 
 const store = useNavStore()
-onMounted(() => store.load())
+const inventoryStore = useInventoryStore()
+
+// 按设备 id 索引在线状态（来自台账已有数据，不新增轮询）
+const deviceStatusMap = computed(() => {
+  const map = new Map<number, 'online' | 'offline' | 'unknown'>()
+  for (const device of inventoryStore.devices) {
+    map.set(device.id, 'unknown')
+  }
+  return map
+})
+
+onMounted(() => {
+  store.load()
+  inventoryStore.loadDevices()
+})
 
 const manageMode = ref(false)
 
@@ -87,7 +102,19 @@ async function saveItem() {
       <n-gi v-for="item in cat.items" :key="item.id" span="4 m:1">
         <n-card size="small" hoverable class="nav-card">
           <a :href="item.url" target="_blank" rel="noopener" style="text-decoration: none; color: inherit">
-            <strong><SiteIcon :url="item.url" :fallback="item.icon" /> {{ item.name }}</strong>
+            <strong>
+              <SiteIcon :url="item.url" :fallback="item.icon" /> {{ item.name }}
+              <n-tag
+                v-if="item.device_id != null"
+                :type="deviceStatusMap.get(item.device_id) === 'online' ? 'success'
+                     : deviceStatusMap.get(item.device_id) === 'offline' ? 'error' : 'default'"
+                size="tiny"
+                style="margin-left: 4px; vertical-align: middle"
+              >
+                {{ deviceStatusMap.get(item.device_id) === 'online' ? '在线'
+                 : deviceStatusMap.get(item.device_id) === 'offline' ? '离线' : '未知' }}
+              </n-tag>
+            </strong>
             <div style="font-size: 12px; opacity: 0.6">{{ item.url }}</div>
           </a>
           <n-space v-if="manageMode" style="margin-top: 8px">
