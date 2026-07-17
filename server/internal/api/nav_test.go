@@ -79,6 +79,56 @@ func TestNavValidation(t *testing.T) {
 	}
 }
 
+func TestNavItemDeviceIDAPI(t *testing.T) {
+	h, _, _ := newTestRouter(t)
+
+	// 准备分类
+	code, env := doJSON(t, h, "POST", "/api/v1/nav/categories", `{"name":"服务","sort_order":1}`)
+	if code != 200 || !env.Success {
+		t.Fatalf("create cat: %d %+v", code, env)
+	}
+	var cat struct{ ID int64 `json:"id"` }
+	json.Unmarshal(env.Data, &cat)
+
+	// 准备设备
+	code, env = doJSON(t, h, "POST", "/api/v1/devices", `{"name":"NAS","kind":"nas","ip_address":"192.168.1.10","enabled":true}`)
+	if code != 200 || !env.Success {
+		t.Fatalf("create device: %d %+v", code, env)
+	}
+	var device struct{ ID int64 `json:"id"` }
+	json.Unmarshal(env.Data, &device)
+
+	body := fmt.Sprintf(`{"category_id":%d,"name":"NAS","url":"http://nas","device_id":%d}`, cat.ID, device.ID)
+
+	// 绑定存在的设备
+	code, env = doJSON(t, h, "POST", "/api/v1/nav/items", body)
+	if code != 200 || !env.Success {
+		t.Fatalf("create item with device_id: %d %+v", code, env)
+	}
+	var item struct {
+		ID       int64  `json:"id"`
+		DeviceID *int64 `json:"device_id"`
+	}
+	json.Unmarshal(env.Data, &item)
+	if item.DeviceID == nil || *item.DeviceID != device.ID {
+		t.Fatalf("device_id not set: %+v", item)
+	}
+
+	// 同一设备绑定第二个导航项应 409
+	body2 := fmt.Sprintf(`{"category_id":%d,"name":"NAS2","url":"http://nas2","device_id":%d}`, cat.ID, device.ID)
+	code, _ = doJSON(t, h, "POST", "/api/v1/nav/items", body2)
+	if code != 409 {
+		t.Errorf("duplicate device_id: want 409, got %d", code)
+	}
+
+	// 绑定不存在的设备应 422
+	body3 := fmt.Sprintf(`{"category_id":%d,"name":"Ghost","url":"http://ghost","device_id":99999}`, cat.ID)
+	code, _ = doJSON(t, h, "POST", "/api/v1/nav/items", body3)
+	if code != 422 {
+		t.Errorf("nonexistent device_id: want 422, got %d", code)
+	}
+}
+
 func TestNavCategoryUpdate(t *testing.T) {
 	h, _, _ := newTestRouter(t)
 

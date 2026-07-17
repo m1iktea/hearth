@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -12,8 +13,8 @@ import (
 	"github.com/m1iktea/hearth/server/internal/store"
 )
 
-func registerNavRoutes(mux *http.ServeMux, nav *store.NavStore) {
-	h := &navHandler{nav: nav}
+func registerNavRoutes(mux *http.ServeMux, nav *store.NavStore, inventory *store.InventoryStore) {
+	h := &navHandler{nav: nav, inventory: inventory}
 	mux.HandleFunc("GET /api/v1/nav", h.list)
 	mux.HandleFunc("POST /api/v1/nav/categories", h.createCategory)
 	mux.HandleFunc("PUT /api/v1/nav/categories/{id}", h.updateCategory)
@@ -24,7 +25,8 @@ func registerNavRoutes(mux *http.ServeMux, nav *store.NavStore) {
 }
 
 type navHandler struct {
-	nav *store.NavStore
+	nav       *store.NavStore
+	inventory *store.InventoryStore
 }
 
 type categoryInput struct {
@@ -38,6 +40,7 @@ type itemInput struct {
 	URL        string `json:"url"`
 	Icon       string `json:"icon"`
 	SortOrder  int    `json:"sort_order"`
+	DeviceID   *int64 `json:"device_id"`
 }
 
 func (h *navHandler) list(w http.ResponseWriter, r *http.Request) {
@@ -100,8 +103,21 @@ func (h *navHandler) createItem(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	if in.DeviceID != nil {
+		if err := h.checkDeviceExists(w, *in.DeviceID); err != nil {
+			return
+		}
+		if err := h.checkDeviceNotLinked(w, *in.DeviceID, 0); err != nil {
+			return
+		}
+	}
 	item, err := h.nav.CreateItem(store.Item{
-		CategoryID: in.CategoryID, Name: in.Name, URL: in.URL, Icon: in.Icon, SortOrder: in.SortOrder,
+		CategoryID: in.CategoryID,
+		Name:       in.Name,
+		URL:        in.URL,
+		Icon:       in.Icon,
+		SortOrder:  in.SortOrder,
+		DeviceID:   in.DeviceID,
 	})
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to create item")
@@ -119,8 +135,22 @@ func (h *navHandler) updateItem(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	if in.DeviceID != nil {
+		if err := h.checkDeviceExists(w, *in.DeviceID); err != nil {
+			return
+		}
+		if err := h.checkDeviceNotLinked(w, *in.DeviceID, id); err != nil {
+			return
+		}
+	}
 	item, err := h.nav.UpdateItem(store.Item{
-		ID: id, CategoryID: in.CategoryID, Name: in.Name, URL: in.URL, Icon: in.Icon, SortOrder: in.SortOrder,
+		ID:         id,
+		CategoryID: in.CategoryID,
+		Name:       in.Name,
+		URL:        in.URL,
+		Icon:       in.Icon,
+		SortOrder:  in.SortOrder,
+		DeviceID:   in.DeviceID,
 	})
 	if errors.Is(err, sql.ErrNoRows) {
 		writeError(w, http.StatusNotFound, "item not found")
@@ -143,6 +173,38 @@ func (h *navHandler) deleteItem(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeOK(w, nil)
+}
+
+// checkDeviceExists 校验设备在台账中存在，失败时写入 422 响应并返回 error。
+func (h *navHandler) checkDeviceExists(w http.ResponseWriter, deviceID int64) error {
+	_, err := h.inventory.GetDevice(deviceID)
+	if errors.Is(err, sql.ErrNoRows) {
+		writeError(w, 422, fmt.Sprintf("device %d not found", deviceID))
+		return err
+	}
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to check device")
+		return err
+	}
+	return nil
+}
+
+// checkDeviceNotLinked 校验同一 device_id 未被其他导航项占用。
+// skipItemID 为 0 表示创建场景；更新场景传入当前条目 id 排除自身。
+func (h *navHandler) checkDeviceNotLinked(w http.ResponseWriter, deviceID int64, skipItemID int64) error {
+	existing, err := h.nav.GetItemByDeviceID(deviceID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil // 未被占用
+	}
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to check device link")
+		return err
+	}
+	if existing.ID == skipItemID {
+		return nil // 更新自身，允许
+	}
+	writeError(w, http.StatusConflict, fmt.Sprintf("device %d is already linked to nav item %d", deviceID, existing.ID))
+	return fmt.Errorf("conflict")
 }
 
 // --- input helpers（边界校验：JSON 合法性 + 必填字段） ---
