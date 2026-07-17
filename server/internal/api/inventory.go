@@ -21,10 +21,11 @@ type arpScanner interface {
 type inventoryHandler struct {
 	store      *store.InventoryStore
 	arpScanner arpScanner
+	nav        *store.NavStore
 }
 
-func registerInventoryRoutes(mux *http.ServeMux, s *store.InventoryStore, scanner arpScanner) {
-	h := &inventoryHandler{store: s, arpScanner: scanner}
+func registerInventoryRoutes(mux *http.ServeMux, s *store.InventoryStore, nav *store.NavStore, scanner arpScanner) {
+	h := &inventoryHandler{store: s, arpScanner: scanner, nav: nav}
 	mux.HandleFunc("GET /api/v1/devices", h.listDevices)
 	mux.HandleFunc("POST /api/v1/devices", h.createDevice)
 	mux.HandleFunc("GET /api/v1/devices/{id}", h.getDevice)
@@ -72,7 +73,18 @@ func (h *inventoryHandler) getDevice(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 500, "failed to get device")
 		return
 	}
-	writeOK(w, v)
+
+	type deviceDetailWithNav struct {
+		store.DeviceDetail
+		NavItem *store.Item `json:"nav_item,omitempty"`
+	}
+	result := deviceDetailWithNav{DeviceDetail: v}
+	if h.nav != nil {
+		if navItem, err := h.nav.GetItemByDeviceID(v.Device.ID); err == nil {
+			result.NavItem = &navItem
+		}
+	}
+	writeOK(w, result)
 }
 func (h *inventoryHandler) createDevice(w http.ResponseWriter, r *http.Request) {
 	d, ok := decodeDevice(w, r)
