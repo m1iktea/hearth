@@ -9,7 +9,7 @@ import type { Plugin } from 'vite'
  * - 严重：飞牛 NAS 的 HTTP 检查失败（502，已持续 12 分钟）
  * - 注意：immich 容器已退出；PVE 节点内存 89% 资源风险
  * - 提醒：路由器 wan6 / lan4 接口 down（共 5 项，可演示”查看全部”展开）
- * - metrics 时序：proxmox/docker/openwrt 各对象 cpu_pct/mem_pct 可过滤
+ * - metrics 时序：proxmox/docker/openwrt 各对象 cpu_pct/mem_pct/temp_c 可过滤
  * - nav 关联设备：设备在线/离线角标演示
  */
 
@@ -254,6 +254,9 @@ const METRIC_DEFS = [
   { source: 'proxmox', object: 'pve-01', metric: 'mem_pct',  base: 58, amplitude: 12, seed: 2.2 },
   { source: 'proxmox', object: 'pve-02', metric: 'cpu_pct',  base: 22, amplitude: 15, seed: 3.3 },
   { source: 'proxmox', object: 'pve-02', metric: 'mem_pct',  base: 65, amplitude: 10, seed: 4.4 },
+  // proxmox 温度（℃，object 为 lm-sensors 芯片名）
+  { source: 'proxmox', object: 'coretemp-isa-0000', metric: 'temp_c', base: 52, amplitude: 8, seed: 14.5 },
+  { source: 'proxmox', object: 'nvme-pci-0100',      metric: 'temp_c', base: 44, amplitude: 5, seed: 15.6 },
   // docker
   { source: 'docker', object: 'hearth',       metric: 'cpu_pct',  base: 8,  amplitude: 8,  seed: 5.5 },
   { source: 'docker', object: 'hearth',       metric: 'mem_pct',  base: 18, amplitude: 8,  seed: 6.6 },

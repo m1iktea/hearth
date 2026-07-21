@@ -25,6 +25,11 @@ const pveMemDefs: SeriesDef[] = [
   { params: { source: 'proxmox', metric: 'mem_pct' } },
 ]
 
+// PVE 宿主机温度趋势：source=proxmox，metric=temp_c；object 为 lm-sensors 芯片名，每芯片一条序列
+const pveTempDefs: SeriesDef[] = [
+  { params: { source: 'proxmox', metric: 'temp_c' } },
+]
+
 // Docker 容器 CPU 趋势：source=docker，metric=cpu_pct
 const dockerCpuDefs: SeriesDef[] = [
   { params: { source: 'docker', metric: 'cpu_pct' } },
@@ -63,6 +68,13 @@ const openwrtMemDefs: SeriesDef[] = [
         <n-space vertical :size="4">
           <span style="font-size: 13px; opacity: .75">PVE 内存 %</span>
           <MetricChart title="PVE 内存" :series-defs="pveMemDefs" :time-range-hours="timeRange" />
+        </n-space>
+      </n-gi>
+
+      <n-gi span="2 m:1">
+        <n-space vertical :size="4">
+          <span style="font-size: 13px; opacity: .75">PVE 温度 ℃</span>
+          <MetricChart title="PVE 温度" :series-defs="pveTempDefs" :time-range-hours="timeRange" unit="℃" />
         </n-space>
       </n-gi>
 
