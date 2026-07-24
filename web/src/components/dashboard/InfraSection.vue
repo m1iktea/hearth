@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { NCard, NGi, NGrid, NTag } from 'naive-ui'
+import { NCard, NGi, NGrid, NTag, useThemeVars } from 'naive-ui'
 import type { DockerData, OpenWrtData, ProxmoxData, Snapshot } from '../../types'
 import { formatAbsolute, formatRelative, formatUptime, percent } from '../../utils/format'
 import { humanizeError, SOURCE_LABELS } from '../../utils/overview'
@@ -88,6 +88,9 @@ const cards = computed<InfraCard[]>(() =>
   }),
 )
 
+// 复用 Naive UI 主题变量：随明/暗主题自动切换状态色
+const themeVars = useThemeVars()
+
 const STATUS_META = {
   online: { label: '在线', type: 'success' },
   offline: { label: '离线', type: 'error' },
@@ -149,7 +152,7 @@ const STATUS_META = {
 }
 .infra-error {
   font-size: 12px;
-  color: #d03050;
+  color: v-bind('themeVars.errorColor');
   margin-top: 4px;
 }
 .infra-rows {
@@ -169,7 +172,7 @@ const STATUS_META = {
   opacity: 0.65;
 }
 .infra-warn {
-  color: #f0a020;
+  color: v-bind('themeVars.warningColor');
   font-weight: 600;
 }
 .infra-empty {

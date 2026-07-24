@@ -1,8 +1,11 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { NCard, NGi, NGrid } from 'naive-ui'
+import { NCard, NGi, NGrid, useThemeVars } from 'naive-ui'
 import type { OverviewSummary } from '../../utils/overview'
+
+// 复用 Naive UI 主题变量：随明/暗主题自动切换状态色
+const themeVars = useThemeVars()
 
 const props = defineProps<{
   summary: OverviewSummary
@@ -97,10 +100,10 @@ const items = computed<SummaryItem[]>(() => {
   opacity: 0.5;
 }
 .tone-danger {
-  color: #d03050;
+  color: v-bind('themeVars.errorColor');
 }
 .tone-success {
-  color: #18a058;
+  color: v-bind('themeVars.successColor');
 }
 .tone-muted {
   opacity: 0.5;

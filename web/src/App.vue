@@ -14,6 +14,15 @@ const activeKey = computed(() => (route.name as string) ?? 'dashboard')
 const theme = useThemeStore()
 const naiveTheme = computed(() => (theme.mode === 'dark' ? darkTheme : null))
 
+// 品牌字标渐变：以主题 store（isDark 的单一事实源）为准切换。
+// App 自身托管 n-config-provider，其 setup 内无法用 useThemeVars 感知 darkTheme，
+// 故直接按 theme.mode 取 Naive UI 明/暗主色（light primary #18a058 / dark primary #63e2b7）+ info 蓝。
+const brandGradient = computed(() =>
+  theme.mode === 'dark'
+    ? 'linear-gradient(120deg, #63e2b7, #2080f0)'
+    : 'linear-gradient(120deg, #18a058, #2080f0)',
+)
+
 const mobileQuery = window.matchMedia('(max-width: 767px)')
 const isMobile = ref(mobileQuery.matches)
 const collapsed = ref(mobileQuery.matches)
@@ -75,3 +84,10 @@ const menuOptions: MenuOption[] = [
     </n-layout>
   </n-config-provider>
 </template>
+
+<style scoped>
+/* 渐变底色随主题切换；字标其余样式（clip/transparent）在全局 style.css 中定义 */
+.brand {
+  background: v-bind(brandGradient);
+}
+</style>

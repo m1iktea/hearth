@@ -9,7 +9,7 @@ import {
 } from 'echarts/components'
 import { CanvasRenderer } from 'echarts/renderers'
 import VChart from 'vue-echarts'
-import { NEmpty, NSpin } from 'naive-ui'
+import { NEmpty, NSpin, useThemeVars } from 'naive-ui'
 import { buildEChartsSeries, queryMetrics, type EChartsSeriesItem, type MetricQueryParams } from '../../api/metrics'
 import { useThemeStore } from '../../stores/theme'
 
@@ -17,6 +17,8 @@ use([LineChart, GridComponent, LegendComponent, TooltipComponent, CanvasRenderer
 
 const themeStore = useThemeStore()
 const isDark = computed(() => themeStore.mode === 'dark')
+// 错误提示文字复用 Naive UI 主题变量，随明/暗主题切换
+const themeVars = useThemeVars()
 
 export interface SeriesDef {
   params: MetricQueryParams
@@ -72,7 +74,11 @@ watchEffect(async (onCleanup) => {
 
 const hasData = computed(() => series.value.some((s) => s.data.length > 0))
 
-const PALETTE = ['#4E7CF6', '#22B07D', '#F2A93B', '#8B5CF6', '#E45B5B', '#2AA7B8', '#D96BB0', '#7E8B9E']
+// 数据线色板：明/暗两套，随 isDark（主题 store 单一事实源）切换。
+// 暗色用更亮/高饱和以在深底上清晰；亮色用更深以在白底上保证对比度。
+const PALETTE_DARK = ['#5B8DEF', '#3CCB8E', '#F4B740', '#A78BFA', '#F0736B', '#3BC0D4', '#E687C4', '#94A3B8']
+const PALETTE_LIGHT = ['#2F63D9', '#12946A', '#D98A1F', '#7C4DE0', '#D6453F', '#1B8F9E', '#C13E96', '#5B6B7F']
+const palette = computed(() => (isDark.value ? PALETTE_DARK : PALETTE_LIGHT))
 
 // 主题色令牌：随 isDark 响应式切换
 const themeTokens = computed(() => isDark.value
@@ -102,8 +108,9 @@ const themeTokens = computed(() => isDark.value
 
 const chartOption = computed(() => {
   const t = themeTokens.value
+  const colors = palette.value
   return {
-    color: PALETTE,
+    color: colors,
     animationDuration: 200,
     tooltip: {
       trigger: 'axis',
@@ -152,7 +159,7 @@ const chartOption = computed(() => {
       splitLine: { lineStyle: { type: 'dashed', color: t.splitLineColor } },
     },
     series: series.value.map((s, idx) => {
-      const baseColor = PALETTE[idx % PALETTE.length]
+      const baseColor = colors[idx % colors.length]
       return {
         ...s,
         showSymbol: false,
@@ -182,7 +189,7 @@ const chartOption = computed(() => {
     </div>
     <template v-else-if="hasData">
       <v-chart :option="chartOption" style="height: 200px" autoresize />
-      <div v-if="error" style="font-size: 12px; color: #e88080; padding: 4px 0">{{ error }}</div>
+      <div v-if="error" :style="{ fontSize: '12px', color: themeVars.errorColor, padding: '4px 0' }">{{ error }}</div>
     </template>
     <n-empty v-else :description="error || '暂无数据'" style="padding: 32px 0" />
   </div>

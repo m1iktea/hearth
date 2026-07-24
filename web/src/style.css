@@ -5,11 +5,10 @@ body {
   transition: background-color 0.2s ease, color 0.2s ease;
 }
 
-/* 品牌字标：渐变文字，纯 CSS 无运行时开销 */
+/* 品牌字标：渐变文字（渐变色在 App.vue 中通过 Naive UI 主题变量随明/暗切换） */
 .brand {
   font-size: 18px;
   font-weight: 700;
-  background: linear-gradient(120deg, #63e2b7, #2080f0);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
