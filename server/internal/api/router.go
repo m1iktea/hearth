@@ -36,6 +36,7 @@ func NewRouter(snaps *store.SnapshotStore, nav *store.NavStore, inventory *store
 	registerNavRoutes(mux, nav, inventory)
 	registerInventoryRoutes(mux, inventory, nav, arpScan)
 	registerMetricsRoutes(mux, inventory)
+	registerHealthTimelineRoutes(mux, inventory)
 
 	mux.Handle("/", spaHandler(dist))
 

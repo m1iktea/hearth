@@ -317,6 +317,75 @@ function metrics(params: URLSearchParams): MetricSample[] {
   return samples
 }
 
+// ── 健康检查状态迁移（黑匣子）时间线 ─────────────────────────────────────────
+// 每个 check 预置一段迁移历史（相对当前时刻的分钟偏移），演示绿红可用率时间线。
+// created_at 动态生成，1h/6h/24h 切换都能看到合理效果。
+
+interface MockTransition {
+  minutesAgo: number
+  status: 'online' | 'offline'
+  reason?: string
+}
+
+/** 每个 check 的迁移历史，升序（越靠后越新）。首条即“首次确认状态”。 */
+const HEALTH_HISTORY: Record<number, MockTransition[]> = {
+  // HTTPS 面板：历史抖动，当前离线（502），已持续 12 分钟
+  18: [
+    { minutesAgo: 60 * 20, status: 'online' },
+    { minutesAgo: 60 * 14, status: 'offline', reason: 'unexpected HTTP status 502' },
+    { minutesAgo: 60 * 13.5, status: 'online' },
+    { minutesAgo: 12, status: 'offline', reason: 'unexpected HTTP status 502' },
+  ],
+  // Ping NAS：稳定在线，3 小时前有过一次短暂超时
+  19: [
+    { minutesAgo: 60 * 26, status: 'online' },
+    { minutesAgo: 60 * 3, status: 'offline', reason: 'request timeout' },
+    { minutesAgo: 60 * 2.9, status: 'online' },
+  ],
+  // SSH 树莓派：78 分钟前离线，65 分钟前恢复（与最近事件一致）
+  20: [
+    { minutesAgo: 60 * 30, status: 'online' },
+    { minutesAgo: 78, status: 'offline', reason: 'dial tcp: connection refused' },
+    { minutesAgo: 65, status: 'online' },
+  ],
+  // Ping 打印机：长期稳定在线（仅锚点，演示 100% 可用率）
+  21: [{ minutesAgo: 60 * 48, status: 'online' }],
+  // Web 面板（已禁用）：长期离线（仅锚点，演示 0% 可用率）
+  22: [{ minutesAgo: 60 * 25, status: 'offline', reason: 'context deadline exceeded' }],
+}
+
+/**
+ * 还原后端 QueryHealthTransitions 契约：返回窗口内迁移 + 窗口前最近一条锚点。
+ * GET /api/v1/health/timeline?check_id=&since=&limit=
+ */
+function healthTimeline(params: URLSearchParams) {
+  const checkId = Number(params.get('check_id'))
+  const history = HEALTH_HISTORY[checkId] ?? []
+  const nowMs = Date.now()
+  const sinceParam = params.get('since')
+  const sinceMs = sinceParam ? new Date(sinceParam).getTime() : nowMs - 24 * 3600_000
+
+  const rows = history.map((t, i) => ({
+    id: checkId * 100 + i,
+    check_id: checkId,
+    device_id: 0,
+    target: '',
+    check_type: '',
+    status: t.status,
+    latency_ms: t.status === 'online' ? 2 : 0,
+    reason: t.reason ?? '',
+    createdAtMs: nowMs - t.minutesAgo * 60_000,
+  }))
+
+  const withinWindow = rows.filter((r) => r.createdAtMs >= sinceMs)
+  const anchor = rows.filter((r) => r.createdAtMs < sinceMs).at(-1)
+  const selected = anchor ? [anchor, ...withinWindow] : withinWindow
+
+  return selected
+    .sort((a, b) => a.createdAtMs - b.createdAtMs)
+    .map(({ createdAtMs, ...rest }) => ({ ...rest, created_at: new Date(createdAtMs).toISOString() }))
+}
+
 function resolveMockGet(path: string, searchParams: URLSearchParams): unknown {
   if (path === '/api/v1/capabilities') return { arp_discovery: true }
   if (path === '/api/v1/status') return status()
@@ -325,6 +394,7 @@ function resolveMockGet(path: string, searchParams: URLSearchParams): unknown {
   if (path === '/api/v1/devices') return devices()
   if (path === '/api/v1/nav') return nav()
   if (path === '/api/v1/metrics') return metrics(searchParams)
+  if (path === '/api/v1/health/timeline') return healthTimeline(searchParams)
   const detail = path.match(/^\/api\/v1\/devices\/(\d+)$/)
   if (detail) return deviceDetail(Number(detail[1]))
   return undefined

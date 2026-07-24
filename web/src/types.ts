@@ -105,3 +105,16 @@ export interface HealthCheck {
 export interface DeviceDetail { device: Device; checks: HealthCheck[]; nav_item?: NavItem }
 export interface Event { id: number; device_id: number; device_name: string; check_id: number; type: string; severity: 'info' | 'warning'; title: string; message: string; created_at: string }
 export interface DiscoveryResult { devices: { device: Device; is_new: boolean; vendor: string }[]; new_count: number; updated_count: number }
+
+// 健康检查状态迁移事件（黑匣子），用于还原绿红可用率时间线。
+export interface HealthTransition {
+  id: number
+  check_id: number
+  device_id: number
+  target: string
+  check_type: string
+  status: 'online' | 'offline'
+  latency_ms: number
+  reason: string
+  created_at: string
+}

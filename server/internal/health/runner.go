@@ -20,6 +20,8 @@ import (
 type checkStore interface {
 	ListEnabledChecks() ([]store.CheckWithDevice, error)
 	RecordProbe(store.CheckWithDevice, string, string, int64, time.Time) error
+	// RecordHealthTransition 仅在状态变化时落黑匣子，用于事后还原可用率时间线。
+	RecordHealthTransition(store.CheckWithDevice, string, string, int64, time.Time) (bool, error)
 }
 
 type Runner struct {
@@ -61,8 +63,13 @@ func (r *Runner) RunOnce(ctx context.Context) {
 			probeCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 			defer cancel()
 			status, msg, latency := r.probe(probeCtx, c)
-			if err := r.store.RecordProbe(c, status, msg, latency, time.Now()); err != nil {
+			now := time.Now()
+			if err := r.store.RecordProbe(c, status, msg, latency, now); err != nil {
 				r.logger.Warn("record health probe failed", "check", c.ID, "error", err)
+			}
+			// 状态迁移落黑匣子（只记变化，内部自行去重）
+			if _, err := r.store.RecordHealthTransition(c, status, msg, latency, now); err != nil {
+				r.logger.Warn("record health transition failed", "check", c.ID, "error", err)
 			}
 		}(check)
 	}

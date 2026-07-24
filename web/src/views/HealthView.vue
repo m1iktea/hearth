@@ -2,6 +2,7 @@
 import { computed, onMounted } from 'vue'
 import { NAlert, NCard, NTable, NTag } from 'naive-ui'
 import { useInventoryStore } from '../stores/inventory'
+import AvailabilityTimeline from '../components/health/AvailabilityTimeline.vue'
 const store = useInventoryStore()
 onMounted(async () => { await Promise.all([store.loadHealth(), store.loadEvents()]) })
 const offline = computed(() => store.health.filter((c) => c.last_status === 'offline').length)
@@ -13,7 +14,10 @@ function tag(status: string) { return status === 'online' ? 'success' : status =
   <n-alert v-if="store.error" type="error" style="margin-bottom: 16px">{{ store.error }}</n-alert>
   <n-card title="当前巡检状态" style="margin-bottom: 16px">
     <n-table size="small"><thead><tr><th>设备</th><th>检查</th><th>类型</th><th>状态</th><th>延迟</th><th>最后检查</th></tr></thead><tbody>
-      <tr v-for="c in store.health" :key="c.id"><td>{{ c.device_name }}</td><td>{{ c.name }}</td><td>{{ c.type.toUpperCase() }}</td><td><n-tag :type="tag(c.last_status)" size="small">{{ c.last_status }}</n-tag></td><td>{{ c.latency_ms ? `${c.latency_ms} ms` : '-' }}</td><td>{{ c.checked_at ? new Date(c.checked_at).toLocaleString() : '等待首次检查' }}</td></tr>
+      <template v-for="c in store.health" :key="c.id">
+        <tr><td>{{ c.device_name }}</td><td>{{ c.name }}</td><td>{{ c.type.toUpperCase() }}</td><td><n-tag :type="tag(c.last_status)" size="small">{{ c.last_status }}</n-tag></td><td>{{ c.latency_ms ? `${c.latency_ms} ms` : '-' }}</td><td>{{ c.checked_at ? new Date(c.checked_at).toLocaleString() : '等待首次检查' }}</td></tr>
+        <tr><td colspan="6" style="padding: 4px 8px 14px"><availability-timeline :check-id="c.id" /></td></tr>
+      </template>
       <tr v-if="!store.health.length"><td colspan="6">还没有启用的健康检查</td></tr>
     </tbody></n-table>
   </n-card>

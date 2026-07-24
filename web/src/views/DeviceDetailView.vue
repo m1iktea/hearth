@@ -4,6 +4,7 @@ import { useRoute } from 'vue-router'
 import { NAlert, NButton, NCard, NForm, NFormItem, NInput, NInputNumber, NModal, NPopconfirm, NSelect, NSpace, NTable, NTag } from 'naive-ui'
 import { useInventoryStore } from '../stores/inventory'
 import { useNavStore } from '../stores/nav'
+import AvailabilityTimeline from '../components/health/AvailabilityTimeline.vue'
 import type { DeviceDetail } from '../types'
 
 const route = useRoute()
@@ -115,7 +116,10 @@ async function removeLink() {
     <n-space justify="space-between" align="center" style="margin-bottom: 16px"><div><h2 style="margin: 0">{{ detail.device.name }}</h2><span style="opacity:.65">{{ detail.device.kind }} · {{ detail.device.ip_address || detail.device.hostname || '未填写地址' }}</span></div><n-space><n-button @click="openEdit">编辑资料</n-button><n-button v-if="detail.device.url" tag="a" :href="detail.device.url" target="_blank">打开管理入口</n-button></n-space></n-space>
     <n-card title="设备资料" style="margin-bottom:16px"><n-table size="small"><tbody><tr><td>IP 地址</td><td>{{ detail.device.ip_address || '-' }}</td></tr><tr><td>MAC 地址</td><td>{{ detail.device.mac_address || '-' }}</td></tr><tr><td>位置</td><td>{{ detail.device.location || '-' }}</td></tr><tr><td>备注</td><td>{{ detail.device.notes || '-' }}</td></tr></tbody></n-table></n-card>
     <n-card title="健康检查"><template #header-extra><n-button size="small" type="primary" @click="checkModal = true">＋ 添加检查</n-button></template><n-table size="small"><thead><tr><th>名称</th><th>类型 / 目标</th><th>状态</th><th>延迟</th><th>详情</th><th></th></tr></thead><tbody>
-      <tr v-for="item in detail.checks" :key="item.id"><td>{{ item.name }}</td><td>{{ item.type.toUpperCase() }} · {{ item.target || detail.device.ip_address }}<span v-if="item.port">:{{ item.port }}</span></td><td><n-tag :type="statusType(item.last_status)" size="small">{{ item.last_status }}</n-tag></td><td>{{ item.latency_ms ? `${item.latency_ms} ms` : '-' }}</td><td>{{ item.last_error || '-' }}</td><td><n-popconfirm @positive-click="removeCheck(item.id)"><template #trigger><n-button size="tiny" type="error">删除</n-button></template>确认删除检查？</n-popconfirm></td></tr>
+      <template v-for="item in detail.checks" :key="item.id">
+        <tr><td>{{ item.name }}</td><td>{{ item.type.toUpperCase() }} · {{ item.target || detail.device.ip_address }}<span v-if="item.port">:{{ item.port }}</span></td><td><n-tag :type="statusType(item.last_status)" size="small">{{ item.last_status }}</n-tag></td><td>{{ item.latency_ms ? `${item.latency_ms} ms` : '-' }}</td><td>{{ item.last_error || '-' }}</td><td><n-popconfirm @positive-click="removeCheck(item.id)"><template #trigger><n-button size="tiny" type="error">删除</n-button></template>确认删除检查？</n-popconfirm></td></tr>
+        <tr><td colspan="6" style="padding: 4px 8px 14px"><availability-timeline :check-id="item.id" /></td></tr>
+      </template>
       <tr v-if="!detail.checks.length"><td colspan="6">尚未添加检查</td></tr>
     </tbody></n-table></n-card>
 

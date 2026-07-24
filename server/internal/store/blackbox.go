@@ -155,6 +155,7 @@ func (s *InventoryStore) PruneBefore(eventsBefore, metricsBefore time.Time) (int
 	}{
 		{`DELETE FROM events WHERE created_at < ?`, eventsBefore},
 		{`DELETE FROM system_events WHERE created_at < ?`, eventsBefore},
+		{`DELETE FROM health_transitions WHERE created_at < ?`, eventsBefore},
 		{`DELETE FROM metric_samples WHERE created_at < ?`, metricsBefore},
 	} {
 		r, err := s.db.Exec(q.sql, q.before.UTC())

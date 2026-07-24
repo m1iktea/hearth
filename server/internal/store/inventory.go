@@ -105,7 +105,16 @@ CREATE TABLE IF NOT EXISTS system_events (
  type TEXT NOT NULL, severity TEXT NOT NULL, title TEXT NOT NULL, message TEXT NOT NULL,
  created_at DATETIME NOT NULL
 );
-CREATE INDEX IF NOT EXISTS idx_system_events_created ON system_events(created_at DESC);`
+CREATE INDEX IF NOT EXISTS idx_system_events_created ON system_events(created_at DESC);
+CREATE TABLE IF NOT EXISTS health_transitions (
+ id INTEGER PRIMARY KEY AUTOINCREMENT,
+ check_id INTEGER NOT NULL REFERENCES health_checks(id) ON DELETE CASCADE,
+ device_id INTEGER NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
+ target TEXT NOT NULL DEFAULT '', check_type TEXT NOT NULL DEFAULT '',
+ status TEXT NOT NULL, latency_ms INTEGER NOT NULL DEFAULT 0,
+ reason TEXT NOT NULL DEFAULT '', created_at DATETIME NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_health_transitions_check ON health_transitions(check_id, created_at);`
 
 // sqliteDSN 统一两个 store 的连接参数：WAL 显著降低高频小事务的 fsync 开销，
 // 也缓解 nav/inventory 两个连接池对同一文件的写锁竞争。
