@@ -86,8 +86,10 @@ const menuOptions: MenuOption[] = [
 </template>
 
 <style scoped>
-/* 渐变底色随主题切换；字标其余样式（clip/transparent）在全局 style.css 中定义 */
+/* 渐变底色随主题切换；字标其余样式（clip/transparent）在全局 style.css 中定义。
+   必须用 background-image（长写）而非 background（简写）——简写会把 background-clip
+   重置为 border-box，导致文字裁剪失效、渐变铺满整块。 */
 .brand {
-  background: v-bind(brandGradient);
+  background-image: v-bind(brandGradient);
 }
 </style>
